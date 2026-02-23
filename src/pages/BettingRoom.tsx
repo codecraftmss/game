@@ -129,7 +129,6 @@ const BettingRoom = () => {
                         betPlacedRef.current = false;
                         setLocalResult(null);
                         setShowResultPopup(false);
-                        setShowJoker(false);
                     }
 
                     setGameState(newState);
@@ -283,27 +282,41 @@ const BettingRoom = () => {
                     style={{ fontSize: 9, writingMode: "vertical-rl", transform: "rotate(180deg)" }}>
                     {roomInfo.name}
                 </div>
-                {/* Joker Toggle */}
-                <button onClick={() => setShowJoker(v => !v)} className="flex flex-col items-center gap-1" title="Show Joker">
-                    <div className={`w-10 h-14 rounded-lg flex flex-col items-center justify-center border-2 transition-all duration-200 shadow-lg
-            ${showJoker ? "bg-amber-400 border-amber-300 scale-105" : "bg-amber-400/20 border-amber-400/50 hover:bg-amber-400/40 hover:scale-105"}`}>
-                        {showJoker && jokerCard
-                            ? <span className="font-black text-xs text-center leading-tight" style={{ color: jokerCard.color }}>{jokerCard.display}</span>
-                            : <span className="text-amber-400 font-black text-[10px] tracking-tight text-center leading-tight">JOKER</span>
-                        }
+                {/* Joker Card Visibility - Auto-Sync with Admin */}
+                <div className="flex flex-col items-center gap-1">
+                    <div className={`w-12 h-16 rounded-xl flex flex-col items-center justify-center border-2 transition-all duration-500 shadow-2xl
+                        ${jokerCard ? "bg-white border-amber-400 scale-110 shadow-[0_0_20px_rgba(245,158,11,0.6)]" : "bg-white/5 border-white/10"}`}>
+                        {jokerCard ? (
+                            <div className="flex flex-col items-center">
+                                <span className="text-[10px] font-black leading-none mb-1" style={{ color: jokerCard.color }}>
+                                    {jokerCard.display.replace(/[♥♦♣♠]/, '')}
+                                </span>
+                                <span className="text-xl leading-none" style={{ color: jokerCard.color }}>
+                                    {jokerCard.display.match(/[♥♦♣♠]/)?.[0]}
+                                </span>
+                            </div>
+                        ) : (
+                            <span className="text-white/20 font-black text-[9px] tracking-widest text-center uppercase leading-tight">Wait<br/>Card</span>
+                        )}
                     </div>
-                    <span className="text-[8px] text-amber-400/70 font-bold uppercase tracking-wider">{showJoker ? "Hide" : "Show"}</span>
-                </button>
+                    <span className="text-[8px] text-amber-400 font-bold uppercase tracking-widest mt-1">Target</span>
+                </div>
                 <div />
             </div>
 
-            {/* JOKER BADGE FLOAT */}
-            {showJoker && jokerCard && (
-                <div className="absolute right-[70px] bottom-[80px] z-30 joker-float-badge">
-                    <div className="relative bg-white rounded-xl shadow-2xl flex flex-col items-center justify-center px-3 py-2 border-2 border-amber-400"
-                        style={{ minWidth: 56, minHeight: 72 }}>
-                        <div className="absolute -top-2.5 left-1/2 -translate-x-1/2 bg-amber-400 text-black text-[8px] font-black px-1.5 py-0.5 rounded-full tracking-wider whitespace-nowrap">JOKER</div>
-                        <span className="font-black text-lg" style={{ color: jokerCard.color }}>{jokerCard.display}</span>
+            {/* JOKER FLOATING BOX (Prominent) */}
+            {jokerCard && (
+                <div className="absolute right-[80px] top-1/2 -translate-y-1/2 z-30 animate-in fade-in zoom-in duration-500">
+                    <div className="relative bg-white rounded-2xl shadow-[0_0_60px_rgba(0,0,0,0.8),0_0_30px_rgba(245,158,11,0.4)] flex flex-col items-center justify-center p-4 border-[3px] border-amber-400"
+                        style={{ minWidth: 90, minHeight: 130 }}>
+                        <div className="absolute -top-3 left-1/2 -translate-x-1/2 bg-amber-400 text-black text-[10px] font-black px-3 py-1 rounded-full tracking-[0.2em] whitespace-nowrap shadow-lg">TARGET CARD</div>
+                        <div className="flex flex-col items-center gap-2">
+                           <span className="font-black text-3xl leading-none" style={{ color: jokerCard.color }}>{jokerCard.display.replace(/[♥♦♣♠]/, '')}</span>
+                           <span className="text-5xl drop-shadow-sm" style={{ color: jokerCard.color }}>{jokerCard.display.match(/[♥♦♣♠]/)?.[0]}</span>
+                        </div>
+                        {/* Decorative corners */}
+                        <div className="absolute top-2 right-2 opacity-5 text-lg">✦</div>
+                        <div className="absolute bottom-2 left-2 opacity-5 text-lg">✦</div>
                     </div>
                 </div>
             )}
