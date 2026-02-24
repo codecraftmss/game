@@ -290,7 +290,7 @@ const AdminDashboard = () => {
       </header>
 
       <main className="container mx-auto px-6 py-6 space-y-12">
-        
+
         {/* ROOM SELECTOR + STATS HEADER */}
         <div className="rounded-2xl p-4 mb-2 flex flex-wrap items-center gap-4 bg-white/5 border border-white/10 backdrop-blur-md">
           <div className="relative">
@@ -318,8 +318,8 @@ const AdminDashboard = () => {
 
           <div className="ml-auto flex items-center gap-6">
             <div className="flex flex-col items-end">
-               <span className="text-[10px] text-white/20 uppercase">Latency: <span className="text-emerald-400 font-bold">{latency}ms</span></span>
-               <span className="text-[10px] text-white/20 uppercase">Session: <span className="text-blue-400 font-bold">{fmtSession(sessionSeconds)}</span></span>
+              <span className="text-[10px] text-white/20 uppercase">Latency: <span className="text-emerald-400 font-bold">{latency}ms</span></span>
+              <span className="text-[10px] text-white/20 uppercase">Session: <span className="text-blue-400 font-bold">{fmtSession(sessionSeconds)}</span></span>
             </div>
             <button onClick={() => { fetchGameState(); fetchHistory(); }} className="text-white/30 hover:text-white transition-colors">
               <RefreshCw className="w-4 h-4" />
@@ -333,7 +333,7 @@ const AdminDashboard = () => {
             <div className="w-1.5 h-6 rounded-full bg-amber-400" />
             <h2 className="text-xl font-black text-white tracking-widest uppercase">Live Control</h2>
           </div>
-          
+
           <div className="grid grid-cols-12 gap-5 min-h-[500px]">
             {/* COLUMN 1: History & Broadcast */}
             <div className="col-span-3 space-y-4 flex flex-col">
@@ -434,7 +434,7 @@ const AdminDashboard = () => {
                       <div className="text-white text-base group-hover:scale-110 transition-all duration-300">{outcome}</div>
                       {gameState?.result === outcome && (
                         <div className="absolute inset-0 bg-white/10 flex items-center justify-center">
-                           <CheckCircle className="w-5 h-5 text-white/80" />
+                          <CheckCircle className="w-5 h-5 text-white/80" />
                         </div>
                       )}
                     </button>
@@ -445,13 +445,13 @@ const AdminDashboard = () => {
 
             {/* COLUMN 3: The Target Card */}
             <div className="col-span-2 flex flex-col items-center justify-center bg-white/2 rounded-3xl border border-white/5 p-6 shadow-inner">
-               <div className="text-center w-full">
+              <div className="text-center w-full">
                 <div className="text-[11px] text-amber-500 font-black uppercase tracking-[0.5em] mb-12">Target Joker</div>
-                
+
                 {selectedCard ? (
                   <div className="relative group mx-auto">
                     <div className="absolute -inset-10 bg-amber-400/20 blur-[60px] rounded-full animate-pulse group-hover:bg-amber-400/30" />
-                    <div className="relative w-36 h-52 bg-white rounded-2xl shadow-[0_40px_80px_rgba(0,0,0,0.9)] border-[8px] border-amber-400 flex flex-col items-center justify-center overflow-hidden transition-all duration-500 transform rotate-[-3deg] hover:rotate-0 hover:scale-110"
+                    <div className="relative w-36 h-52 bg-white rounded-2xl shadow-[0_40px_80px_rgba(0,0,0,0.9)] border-[8px] border-amber-400 flex flex-col items-center justify-center overflow-hidden transition-all duration-500 transform hover:scale-110"
                       style={{ boxShadow: "0 0 50px rgba(245,158,11,0.6), inset 0 0 30px rgba(245,158,11,0.4)" }}>
                       {(() => {
                         const suit = SUITS.find(s => selectedCard.includes(s.sym));
@@ -467,10 +467,10 @@ const AdminDashboard = () => {
                   </div>
                 ) : (
                   <div className="w-36 h-52 mx-auto rounded-2xl border-[4px] border-dashed border-white/10 flex items-center justify-center bg-black/40 transition-colors">
-                    <div className="text-[11px] text-white/10 font-black uppercase tracking-widest text-center px-4 leading-relaxed">Select Card<br/>to Start Round</div>
+                    <div className="text-[11px] text-white/10 font-black uppercase tracking-widest text-center px-4 leading-relaxed">Select Card<br />to Start Round</div>
                   </div>
                 )}
-                
+
                 <div className="mt-12">
                   {selectedCard ? (
                     <div className="inline-flex items-center gap-3 px-6 py-2.5 rounded-full bg-amber-500/10 border border-amber-500/30 shadow-lg">
@@ -561,9 +561,9 @@ const AdminDashboard = () => {
                           {ROOM_STATUS_CYCLE.filter(s => s !== room.status).map(s => (
                             <button key={s} disabled={roomActionLoading === room.id} onClick={() => handleRoomStatus(room, s)}
                               className={`text-[9px] font-black uppercase tracking-widest px-3 py-1.5 rounded-xl border transition-all disabled:opacity-40
-                                ${s === "LIVE" ? "bg-amber-500/10 border-amber-500/30 text-amber-500 hover:bg-amber-500/20" : 
+                                ${s === "LIVE" ? "bg-amber-500/10 border-amber-500/30 text-amber-500 hover:bg-amber-500/20" :
                                   s === "ONLINE" ? "bg-emerald-500/10 border-emerald-500/30 text-emerald-500 hover:bg-emerald-500/20" :
-                                  "bg-white/5 border-white/10 text-white/40 hover:bg-white/10"}`}>
+                                    "bg-white/5 border-white/10 text-white/40 hover:bg-white/10"}`}>
                               → {s}
                             </button>
                           ))}
