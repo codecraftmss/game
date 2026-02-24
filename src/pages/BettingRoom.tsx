@@ -31,6 +31,7 @@ const BettingRoom = () => {
 
     // Room info
     const [roomInfo, setRoomInfo] = useState({ name: "Table", minBet: 500, streamUrl: undefined as string | undefined });
+    const [roomLoading, setRoomLoading] = useState(true);
 
     // Admin-controlled game state — use ref for subscription closure safety
     const [gameState, setGameState] = useState<GameState | null>(null);
@@ -66,12 +67,19 @@ const BettingRoom = () => {
     useEffect(() => {
         if (!roomId) return;
         const fetchRoom = async () => {
-            const { data } = await supabase
+            const { data, error } = await supabase
                 .from("rooms").select("name, min_bet, status, stream_url").eq("id", roomId).maybeSingle();
+            if (error) {
+                // Network / RLS error — don't redirect, just log
+                console.error("Room fetch error:", error.message);
+                setRoomLoading(false);
+                return;
+            }
             if (!data || (data.status !== "ONLINE" && data.status !== "LIVE")) {
                 navigate("/dashboard");
             } else {
                 setRoomInfo({ name: data.name, minBet: Number(data.min_bet), streamUrl: data.stream_url ?? undefined });
+                setRoomLoading(false);
             }
         };
         fetchRoom();
@@ -186,6 +194,17 @@ const BettingRoom = () => {
         const isRed = sym.includes("♥") || sym.includes("♦");
         return { display: sym, color: isRed ? "#e74c3c" : "#1a1a2e" };
     })() : null;
+
+    if (roomLoading) {
+        return (
+            <div className="room-root" style={{ display: "flex", alignItems: "center", justifyContent: "center", background: "#0d1b2a" }}>
+                <div style={{ textAlign: "center", color: "rgba(255,255,255,0.5)" }}>
+                    <div style={{ fontSize: 32, marginBottom: 12 }}>🃏</div>
+                    <div style={{ fontSize: 13, letterSpacing: "0.15em", textTransform: "uppercase" }}>Loading Table…</div>
+                </div>
+            </div>
+        );
+    }
 
     return (
         <div className="room-root">
