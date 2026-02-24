@@ -301,86 +301,129 @@ const BettingRoom = () => {
                     style={{ fontSize: 9, writingMode: "vertical-rl", transform: "rotate(180deg)" }}>
                     {roomInfo.name}
                 </div>
-                {/* Joker Card Visibility - Auto-Sync with Admin */}
-                <div className="flex flex-col items-center gap-1">
-                    <div className={`w-12 h-16 rounded-xl flex flex-col items-center justify-center border-2 transition-all duration-500 shadow-2xl
-                        ${jokerCard ? "bg-white border-amber-400 scale-110 shadow-[0_0_20px_rgba(245,158,11,0.6)]" : "bg-white/5 border-white/10"}`}>
-                        {jokerCard ? (
-                            <div className="flex flex-col items-center">
-                                <span className="text-[10px] font-black leading-none mb-1" style={{ color: jokerCard.color }}>
-                                    {jokerCard.display.replace(/[♥♦♣♠]/, '')}
-                                </span>
-                                <span className="text-xl leading-none" style={{ color: jokerCard.color }}>
-                                    {jokerCard.display.match(/[♥♦♣♠]/)?.[0]}
-                                </span>
-                            </div>
-                        ) : (
-                            <span className="text-white/20 font-black text-[9px] tracking-widest text-center uppercase leading-tight">Wait<br/>Card</span>
-                        )}
-                    </div>
-                    <span className="text-[8px] text-amber-400 font-bold uppercase tracking-widest mt-1">Target</span>
-                </div>
                 <div />
             </div>
 
-            {/* JOKER FLOATING BOX (Prominent) */}
-            {jokerCard && (
-                <div className="absolute right-[80px] top-1/2 -translate-y-1/2 z-30 animate-in fade-in zoom-in duration-500">
-                    <div className="relative bg-white rounded-2xl shadow-[0_0_60px_rgba(0,0,0,0.8),0_0_30px_rgba(245,158,11,0.4)] flex flex-col items-center justify-center p-4 border-[3px] border-amber-400"
-                        style={{ minWidth: 90, minHeight: 130 }}>
-                        <div className="absolute -top-3 left-1/2 -translate-x-1/2 bg-amber-400 text-black text-[10px] font-black px-3 py-1 rounded-full tracking-[0.2em] whitespace-nowrap shadow-lg">TARGET CARD</div>
-                        <div className="flex flex-col items-center gap-2">
-                           <span className="font-black text-3xl leading-none" style={{ color: jokerCard.color }}>{jokerCard.display.replace(/[♥♦♣♠]/, '')}</span>
-                           <span className="text-5xl drop-shadow-sm" style={{ color: jokerCard.color }}>{jokerCard.display.match(/[♥♦♣♠]/)?.[0]}</span>
+            {/* ANDAR / BAHAR STACKED BUTTONS - Redesigned UI */}
+            <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-20 flex flex-col gap-0 px-2 h-[130px] sm:h-[140px] w-[calc(100%-160px)] max-w-[450px] md:max-w-[550px]">
+                {/* Background cutout wrapper */}
+                <div className="relative w-full h-full flex flex-col group/bets">
+
+                    {/* ANDAR BUTTON */}
+                    <button
+                        onClick={() => handleBet('andar')}
+                        disabled={!bettingOpen || betPlaced}
+                        className={`relative flex-1 rounded-tl-xl rounded-tr-xl overflow-hidden transition-all duration-150 group
+                                ${!bettingOpen || betPlaced ? "opacity-50 cursor-not-allowed" : "hover:brightness-110 active:scale-[0.98]"}
+                                ${localResult?.toLowerCase() === 'andar' ? "zone-win-glow" : ""}`}
+                        style={{
+                            background: "radial-gradient(circle at top center, #3c6e7a 0%, #294c55 100%)",
+                            border: "2.5px solid #629ca7",
+                            borderBottom: "1.5px solid #629ca7",
+                            padding: "8px 16px",
+                            boxShadow: "inset 0 0 40px rgba(0,0,0,0.3)"
+                        }}>
+                        {/* Faint mandala pattern overlay */}
+                        <div className="absolute inset-0 opacity-[0.03] pointer-events-none" style={{ backgroundImage: "repeating-radial-gradient(circle at 100% 50%, white 0, white 1px, transparent 1px, transparent 15px)" }} />
+
+                        <div className="relative z-10 flex flex-col items-start justify-center h-full">
+                            <span className="text-white font-black text-xl sm:text-2xl tracking-wide uppercase drop-shadow-md">ANDAR</span>
+                            <span className="text-[#a4d4dc] text-[10px] sm:text-xs font-bold tracking-widest leading-none mt-0.5">0.9:1</span>
                         </div>
-                        {/* Decorative corners */}
-                        <div className="absolute top-2 right-2 opacity-5 text-lg">✦</div>
-                        <div className="absolute bottom-2 left-2 opacity-5 text-lg">✦</div>
+
+                        {/* Stacked Chips Visual */}
+                        {andarBets.length > 0 && (
+                            <div className="absolute left-[110px] sm:left-[140px] top-1/2 -translate-y-1/2 flex items-center pointer-events-none">
+                                <div className="relative" style={{ height: 26, width: 26 }}>
+                                    {andarBets.slice(-5).map((b, i) => (
+                                        <div key={i} className="absolute rounded-full border border-white flex items-center justify-center shadow-lg"
+                                            style={{ width: 26, height: 26, background: CHIPS.find(c => c.value === b.amount)?.color || "#555", left: i * 8, top: -i * 2, zIndex: i }}>
+                                            <div className="w-[18px] h-[18px] border-[0.5px] border-white/40 rounded-full flex items-center justify-center bg-black/10">
+                                                <span className="text-[7px] font-black">{b.amount >= 1000 ? (b.amount / 1000) + 'K' : b.amount}</span>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+                        {/* Total Amount Badge */}
+                        {andarTotal > 0 && (
+                            <div className="absolute right-[90px] top-1/2 -translate-y-1/2 text-white/90 text-[10px] sm:text-xs font-bold bg-black/40 border border-white/10 px-2 py-1 rounded shadow-inner">
+                                ₹{andarTotal.toLocaleString()}
+                            </div>
+                        )}
+
+                        {localResult?.toLowerCase() === 'andar' && <div className="absolute inset-0 bg-white/10 z-20 flex items-center justify-end pr-[100px]"><span className="text-3xl animate-bounce">🏆</span></div>}
+                    </button>
+
+                    {/* BAHAR BUTTON */}
+                    <button
+                        onClick={() => handleBet('bahar')}
+                        disabled={!bettingOpen || betPlaced}
+                        className={`relative flex-1 rounded-bl-xl rounded-br-xl overflow-hidden transition-all duration-150 group
+                                ${!bettingOpen || betPlaced ? "opacity-50 cursor-not-allowed" : "hover:brightness-110 active:scale-[0.98]"}
+                                ${localResult?.toLowerCase() === 'bahar' ? "zone-win-glow" : ""}`}
+                        style={{
+                            background: "radial-gradient(circle at bottom center, #8f4f38 0%, #753b23 100%)",
+                            border: "2.5px solid #bc6941",
+                            borderTop: "1.5px solid #bc6941",
+                            padding: "8px 16px",
+                            boxShadow: "inset 0 0 40px rgba(0,0,0,0.3)"
+                        }}>
+                        <div className="absolute inset-0 opacity-[0.03] pointer-events-none" style={{ backgroundImage: "repeating-radial-gradient(circle at 100% 50%, white 0, white 1px, transparent 1px, transparent 15px)" }} />
+
+                        <div className="relative z-10 flex flex-col items-start justify-center h-full">
+                            <span className="text-white font-black text-xl sm:text-2xl tracking-wide uppercase drop-shadow-md">BAHAR</span>
+                            <span className="text-[#dfa589] text-[10px] sm:text-xs font-bold tracking-widest leading-none mt-0.5">1:1</span>
+                        </div>
+
+                        {/* Stacked Chips Visual */}
+                        {baharBets.length > 0 && (
+                            <div className="absolute left-[110px] sm:left-[140px] top-1/2 -translate-y-1/2 flex items-center pointer-events-none">
+                                <div className="relative" style={{ height: 26, width: 26 }}>
+                                    {baharBets.slice(-5).map((b, i) => (
+                                        <div key={i} className="absolute rounded-full border border-white flex items-center justify-center shadow-lg"
+                                            style={{ width: 26, height: 26, background: CHIPS.find(c => c.value === b.amount)?.color || "#555", left: i * 8, top: -i * 2, zIndex: i }}>
+                                            <div className="w-[18px] h-[18px] border-[0.5px] border-white/40 rounded-full flex items-center justify-center bg-black/10">
+                                                <span className="text-[7px] font-black">{b.amount >= 1000 ? (b.amount / 1000) + 'K' : b.amount}</span>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+                        {/* Total Amount Badge */}
+                        {baharTotal > 0 && (
+                            <div className="absolute right-[90px] top-1/2 -translate-y-1/2 text-white/90 text-[10px] sm:text-xs font-bold bg-black/40 border border-white/10 px-2 py-1 rounded shadow-inner">
+                                ₹{baharTotal.toLocaleString()}
+                            </div>
+                        )}
+
+                        {localResult?.toLowerCase() === 'bahar' && <div className="absolute inset-0 bg-white/10 z-20 flex items-center justify-end pr-[100px]"><span className="text-3xl animate-bounce">🏆</span></div>}
+                    </button>
+
+                    {/* THE CUTOUT OVERLAY FOR THE TARGET CARD */}
+                    <div className="absolute right-[-2.5px] top-1/2 -translate-y-1/2 w-[90px] sm:w-[100px] h-[100px] sm:h-[110px] rounded-l-full flex items-center justify-center pointer-events-none z-30 shadow-[-10px_0_20px_rgba(0,0,0,0.3)]"
+                        style={{ background: "#111823" }}>
+                        {/* Border matching the buttons to complete the illusion */}
+                        <div className="absolute top-0 left-0 w-full h-1/2 border-l-[2.5px] border-t-[2.5px] rounded-tl-full" style={{ borderColor: "#629ca7" }} />
+                        <div className="absolute bottom-0 left-0 w-full h-1/2 border-l-[2.5px] border-b-[2.5px] rounded-bl-full" style={{ borderColor: "#bc6941" }} />
+
+                        {/* The Joker Card inside the cutout */}
+                        <div className="relative ml-2 sm:ml-4 flex items-center justify-center pointer-events-auto">
+                            {jokerCard ? (
+                                <div className="bg-white rounded border-[1.5px] border-amber-400 p-1 flex flex-col items-center justify-center shadow-[0_0_15px_rgba(245,158,11,0.4)]" style={{ width: 44, height: 62 }}>
+                                    <span className="text-[14px] font-black leading-none mb-0.5" style={{ color: jokerCard.color }}>{jokerCard.display.replace(/[♥♦♣♠]/, '')}</span>
+                                    <span className="text-[22px] leading-none" style={{ color: jokerCard.color }}>{jokerCard.display.match(/[♥♦♣♠]/)?.[0]}</span>
+                                </div>
+                            ) : (
+                                <div className="w-[44px] h-[62px] border border-white/20 rounded flex items-center justify-center bg-white/5">
+                                    <span className="text-[8px] text-white/40 uppercase font-black text-center leading-tight">No<br />Card</span>
+                                </div>
+                            )}
+                        </div>
                     </div>
                 </div>
-            )}
-
-            {/* ANDAR / BAHAR BUTTONS */}
-            <div className="absolute bottom-0 left-[90px] right-[60px] z-20 flex items-end pb-3 sm:pb-4 gap-2 sm:gap-3 px-2">
-                {(["andar", "bahar"] as const).map(side => {
-                    const total = side === "andar" ? andarTotal : baharTotal;
-                    const bets = side === "andar" ? andarBets : baharBets;
-                    const isWin = localResult?.toLowerCase() === side;
-                    return (
-                        <button key={side} onClick={() => handleBet(side)}
-                            disabled={!bettingOpen || betPlaced}
-                            className={`relative flex-1 rounded-xl overflow-hidden transition-all duration-150 select-none
-                ${!bettingOpen || betPlaced ? "opacity-50 cursor-not-allowed" : "hover:brightness-110 active:scale-[0.97]"}
-                ${isWin ? "zone-win-glow" : ""}`}
-                            style={{
-                                background: side === "andar"
-                                    ? "linear-gradient(160deg,#c0392b,#7b241c)"
-                                    : "linear-gradient(160deg,#1a3a4a,#0d2233)",
-                                border: isWin
-                                    ? `2px solid ${side === "andar" ? "#f1948a" : "#7fb3d3"}`
-                                    : "2px solid rgba(255,255,255,0.1)",
-                                padding: "8px 10px",
-                            }}>
-                            <div className="text-white font-black text-sm tracking-[0.12em] text-center uppercase">{side}</div>
-                            {total > 0 && <div className="text-white/80 text-[9px] text-center font-bold mt-0.5">₹{total.toLocaleString()}</div>}
-                            {bets.length > 0 && (
-                                <div className="flex justify-center mt-1">
-                                    <div className="relative" style={{ height: 18 }}>
-                                        {bets.slice(-4).map((b, i) => (
-                                            <div key={i} className="absolute rounded-full border border-white/20"
-                                                style={{ width: 16, height: 16, background: CHIPS.find(c => c.value === b.amount)?.color || "#555", left: i * 6, top: 0, zIndex: i }} />
-                                        ))}
-                                    </div>
-                                </div>
-                            )}
-                            {isWin && (
-                                <div className="absolute inset-0 flex items-center justify-center bg-black/20 rounded-xl">
-                                    <span className="text-white font-black text-base">🏆</span>
-                                </div>
-                            )}
-                        </button>
-                    );
-                })}
             </div>
 
             {/* BETTING CLOSED OVERLAY */}
