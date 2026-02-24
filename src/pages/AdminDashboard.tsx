@@ -329,12 +329,12 @@ const AdminDashboard = () => {
 
         {/* ── SECTION 1: GAME CONTROL (The 4-Column Grid) ── */}
         <section>
-          <div className="flex items-center gap-3 mb-6">
-            <div className="w-1.5 h-6 rounded-full bg-amber-400" />
-            <h2 className="text-xl font-black text-white tracking-widest uppercase">Live Control</h2>
+          <div className="flex items-center gap-3 mb-4">
+            <div className="w-1.5 h-5 rounded-full bg-amber-400" />
+            <h2 className="text-lg font-black text-white tracking-widest uppercase">Live Control</h2>
           </div>
 
-          <div className="grid grid-cols-12 gap-5 min-h-[500px]">
+          <div className="grid grid-cols-12 gap-4 h-[440px]">
             {/* COLUMN 1: History & Broadcast */}
             <div className="col-span-3 space-y-4 flex flex-col">
               <div className="rounded-2xl flex-1 flex flex-col overflow-hidden bg-black/40 border border-white/5">
@@ -384,13 +384,13 @@ const AdminDashboard = () => {
             </div>
 
             {/* COLUMN 2: Phase & Main Controls */}
-            <div className="col-span-3 space-y-4 flex flex-col">
-              <div className="rounded-2xl p-4 bg-white/5 border border-white/10">
-                <div className="text-[9px] text-white/20 uppercase tracking-[0.2em] mb-4">Phase Control</div>
+            <div className="col-span-3 flex flex-col gap-3">
+              <div className="rounded-2xl p-3 bg-white/5 border border-white/10 shrink-0">
+                <div className="text-[9px] text-white/20 uppercase tracking-[0.2em] mb-2">Phase Control</div>
                 <div className="grid grid-cols-2 gap-2">
                   {(["1ST_BET", "2ND_BET"] as const).map(phase => (
                     <button key={phase} onClick={() => handlePhaseToggle(phase)}
-                      className="py-3 text-[10px] font-black uppercase tracking-wider transition-all rounded-xl border"
+                      className="py-2 text-[9px] font-black uppercase tracking-wider transition-all rounded-xl border"
                       style={{
                         background: gameState?.betting_phase === phase ? "rgba(245,158,11,0.2)" : "rgba(255,255,255,0.02)",
                         color: gameState?.betting_phase === phase ? "#fbbf24" : "rgba(255,255,255,0.15)",
@@ -405,36 +405,36 @@ const AdminDashboard = () => {
               <div className="flex-1 flex flex-col gap-3">
                 <button onClick={() => handleBettingToggle("OPEN")}
                   disabled={gameState?.betting_status === "OPEN"}
-                  className="flex-1 py-5 rounded-3xl text-xl font-black uppercase tracking-[0.2em] transition-all disabled:opacity-30 flex flex-col items-center justify-center gap-1 shadow-2xl active:scale-95 border-2 group"
+                  className="flex-1 rounded-2xl text-sm font-black uppercase tracking-[0.1em] transition-all disabled:opacity-30 flex flex-col items-center justify-center gap-1 shadow-2xl active:scale-95 border-2 group"
                   style={{ background: "linear-gradient(135deg, rgba(74,222,128,0.15), rgba(20,83,45,0.3))", borderColor: "rgba(74,222,128,0.4)", color: "#4ade80" }}>
-                  <div className="text-[10px] opacity-40 font-medium tracking-[0.4em]">MANUAL</div>
+                  <div className="text-[9px] opacity-40 font-medium tracking-[0.3em]">MANUAL</div>
                   ✦ OPEN BETTING
                 </button>
                 <button onClick={() => handleBettingToggle("CLOSED")}
                   disabled={gameState?.betting_status === "CLOSED"}
-                  className="flex-1 py-5 rounded-3xl text-xl font-black uppercase tracking-[0.2em] transition-all disabled:opacity-30 flex flex-col items-center justify-center gap-1 shadow-2xl active:scale-95 border-2 group"
+                  className="flex-1 rounded-2xl text-sm font-black uppercase tracking-[0.1em] transition-all disabled:opacity-30 flex flex-col items-center justify-center gap-1 shadow-2xl active:scale-95 border-2 group"
                   style={{ background: "linear-gradient(135deg, rgba(248,113,113,0.15), rgba(127,29,29,0.3))", borderColor: "rgba(248,113,113,0.4)", color: "#f87171" }}>
-                  <div className="text-[10px] opacity-40 font-medium tracking-[0.4em]">MANUAL</div>
+                  <div className="text-[9px] opacity-40 font-medium tracking-[0.3em]">MANUAL</div>
                   ✦ CLOSE BETTING
                 </button>
               </div>
 
-              <div className="rounded-2xl p-4 bg-black/40 border border-white/5">
-                <div className="text-[9px] text-white/20 uppercase tracking-[0.3em] mb-4 text-center">Trigger Result</div>
-                <div className="grid grid-cols-2 gap-3">
+              <div className="rounded-2xl p-3 bg-black/40 border border-white/5 shrink-0">
+                <div className="text-[8px] text-white/20 uppercase tracking-[0.3em] mb-2 text-center">Trigger Result</div>
+                <div className="grid grid-cols-2 gap-2">
                   {(["ANDAR", "BAHAR"] as const).map(outcome => (
                     <button key={outcome}
                       onClick={() => setConfirmModal({ open: true, outcome })}
                       disabled={gameState?.betting_status !== "CLOSED"}
-                      className="py-5 rounded-2xl font-black uppercase tracking-[0.1em] transition-all disabled:opacity-10 relative overflow-hidden group border active:scale-95"
+                      className="py-3 rounded-xl font-black text-xs uppercase tracking-[0.1em] transition-all disabled:opacity-10 relative overflow-hidden group border active:scale-95"
                       style={{
                         background: outcome === "ANDAR" ? "linear-gradient(135deg, #c0392b, #7b241c)" : "linear-gradient(135deg, #1a3a4a, #0d2233)",
                         borderColor: "rgba(255,255,255,0.1)",
                       }}>
-                      <div className="text-white text-base group-hover:scale-110 transition-all duration-300">{outcome}</div>
+                      <div className="text-white group-hover:scale-110 transition-all duration-300">{outcome}</div>
                       {gameState?.result === outcome && (
                         <div className="absolute inset-0 bg-white/10 flex items-center justify-center">
-                          <CheckCircle className="w-5 h-5 text-white/80" />
+                          <CheckCircle className="w-4 h-4 text-white/80" />
                         </div>
                       )}
                     </button>
@@ -444,77 +444,77 @@ const AdminDashboard = () => {
             </div>
 
             {/* COLUMN 3: The Target Card */}
-            <div className="col-span-2 flex flex-col items-center justify-center bg-white/2 rounded-3xl border border-white/5 p-6 shadow-inner">
+            <div className="col-span-2 flex flex-col items-center justify-center bg-white/2 rounded-2xl border border-white/5 p-4 shadow-inner">
               <div className="text-center w-full">
-                <div className="text-[11px] text-amber-500 font-black uppercase tracking-[0.5em] mb-12">Target Joker</div>
+                <div className="text-[10px] text-amber-500 font-black uppercase tracking-[0.4em] mb-6">Target Joker</div>
 
                 {selectedCard ? (
                   <div className="relative group mx-auto">
-                    <div className="absolute -inset-10 bg-amber-400/20 blur-[60px] rounded-full animate-pulse group-hover:bg-amber-400/30" />
-                    <div className="relative w-36 h-52 bg-white rounded-2xl shadow-[0_40px_80px_rgba(0,0,0,0.9)] border-[8px] border-amber-400 flex flex-col items-center justify-center overflow-hidden transition-all duration-500 transform hover:scale-110"
-                      style={{ boxShadow: "0 0 50px rgba(245,158,11,0.6), inset 0 0 30px rgba(245,158,11,0.4)" }}>
+                    <div className="absolute -inset-6 bg-amber-400/20 blur-[40px] rounded-full animate-pulse group-hover:bg-amber-400/30" />
+                    <div className="relative w-24 h-36 bg-white rounded-xl shadow-[0_20px_40px_rgba(0,0,0,0.9)] border-[6px] border-amber-400 flex flex-col items-center justify-center overflow-hidden transition-all duration-500 transform hover:scale-110"
+                      style={{ boxShadow: "0 0 30px rgba(245,158,11,0.6), inset 0 0 20px rgba(245,158,11,0.4)" }}>
                       {(() => {
                         const suit = SUITS.find(s => selectedCard.includes(s.sym));
                         const val = selectedCard.replace(suit?.sym || "", "");
                         return <>
-                          <div className="absolute top-3 left-3.5 font-black text-3xl leading-none" style={{ color: suit?.color }}>{val}</div>
-                          <div className="text-8xl drop-shadow-md select-none" style={{ color: suit?.color }}>{suit?.sym}</div>
-                          <div className="absolute bottom-3 right-3.5 font-black text-3xl leading-none rotate-180" style={{ color: suit?.color }}>{val}</div>
+                          <div className="absolute top-2 left-2 font-black text-xl leading-none" style={{ color: suit?.color }}>{val}</div>
+                          <div className="text-5xl drop-shadow-md select-none" style={{ color: suit?.color }}>{suit?.sym}</div>
+                          <div className="absolute bottom-2 right-2 font-black text-xl leading-none rotate-180" style={{ color: suit?.color }}>{val}</div>
                           <div className="absolute inset-0 bg-gradient-to-tr from-black/5 to-transparent pointer-events-none" />
                         </>;
                       })()}
                     </div>
                   </div>
                 ) : (
-                  <div className="w-36 h-52 mx-auto rounded-2xl border-[4px] border-dashed border-white/10 flex items-center justify-center bg-black/40 transition-colors">
-                    <div className="text-[11px] text-white/10 font-black uppercase tracking-widest text-center px-4 leading-relaxed">Select Card<br />to Start Round</div>
+                  <div className="w-24 h-36 mx-auto rounded-xl border-[3px] border-dashed border-white/10 flex items-center justify-center bg-black/40 transition-colors">
+                    <div className="text-[9px] text-white/10 font-black uppercase tracking-widest text-center px-2 leading-relaxed">Select Card<br />to Start</div>
                   </div>
                 )}
 
-                <div className="mt-12">
+                <div className="mt-8">
                   {selectedCard ? (
-                    <div className="inline-flex items-center gap-3 px-6 py-2.5 rounded-full bg-amber-500/10 border border-amber-500/30 shadow-lg">
-                      <div className="w-2.5 h-2.5 rounded-full bg-amber-400 animate-ping" />
-                      <span className="text-[11px] font-black text-amber-400 tracking-[0.3em] uppercase">{selectedCard} IS LIVE</span>
+                    <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-amber-500/10 border border-amber-500/30 shadow-lg">
+                      <div className="w-2 h-2 rounded-full bg-amber-400 animate-ping" />
+                      <span className="text-[9px] font-black text-amber-400 tracking-[0.2em] uppercase">{selectedCard} IS LIVE</span>
                     </div>
                   ) : (
-                    <div className="text-[10px] text-white/20 font-bold uppercase tracking-widest italic">Waiting for selection...</div>
+                    <div className="text-[9px] text-white/20 font-bold uppercase tracking-widest italic">Waiting...</div>
                   )}
                 </div>
               </div>
             </div>
 
             {/* COLUMN 4: Card Selection Grid */}
-            <div className="col-span-4 bg-black/40 rounded-3xl p-5 border border-white/10 flex flex-col shadow-2xl">
-              <div className="flex items-center justify-between mb-5 px-1">
-                <span className="text-[11px] font-black text-white/40 uppercase tracking-[0.3em]">Set Target Card</span>
-                <Badge variant="outline" className="text-[9px] bg-white/5 border-white/10 text-white/30 uppercase px-2 py-0.5">Real-time Sync</Badge>
+            <div className="col-span-4 bg-black/40 rounded-2xl p-4 border border-white/10 flex flex-col shadow-2xl overflow-hidden">
+              <div className="flex items-center justify-between mb-3 px-1">
+                <span className="text-[10px] font-black text-white/40 uppercase tracking-[0.2em]">Set Target Card</span>
+                <Badge variant="outline" className="text-[8px] bg-white/5 border-white/10 text-white/30 uppercase px-1.5 py-0 h-4">Real-time</Badge>
               </div>
 
-              <div className="flex-1 grid grid-cols-2 gap-x-6 gap-y-5">
+              <div className="flex-1 grid grid-cols-2 gap-x-4 gap-y-3 overflow-y-auto pr-2 scrollbar-thin scrollbar-thumb-white/10 scrollbar-track-transparent">
                 {SUITS.map(suit => (
                   <div key={suit.name} className="flex flex-col">
-                    <div className="flex items-center gap-2 mb-2 px-1">
-                      <span className="text-2xl leading-none" style={{ color: suit.color === "#e74c3c" ? "#f87171" : "white" }}>{suit.sym}</span>
-                      <span className="text-[10px] font-black uppercase tracking-[0.2em] text-white/20">{suit.name}</span>
+                    <div className="flex items-center gap-1.5 mb-1.5 px-1">
+                      <span className="text-lg leading-none" style={{ color: suit.color === "#e74c3c" ? "#f87171" : "white" }}>{suit.sym}</span>
+                      <span className="text-[9px] font-black uppercase tracking-[0.1em] text-white/20">{suit.name}</span>
                     </div>
-                    <div className="grid grid-cols-5 gap-2">
+                    <div className="grid grid-cols-5 gap-1.5">
                       {VALUES.map(val => {
                         const card = `${val}${suit.sym}`;
                         const isSelected = selectedCard === card;
                         return (
                           <button key={card} onClick={() => handleCardSelect(card)}
-                            className="relative aspect-[3/4.5] flex items-center justify-center rounded-xl text-sm font-black transition-all duration-300 border hover:border-white/30"
+                            className="relative aspect-[3/4] flex items-center justify-center rounded-lg text-xs font-black transition-all duration-300 border hover:border-white/30"
                             style={{
                               background: isSelected ? "white" : "rgba(255,255,255,0.02)",
                               borderColor: isSelected ? "#fbbf24" : "rgba(255,255,255,0.08)",
                               color: isSelected ? suit.color : (suit.color === "#e74c3c" ? "#f87171" : "rgba(255,255,255,0.3)"),
-                              boxShadow: isSelected ? "0 0 30px rgba(251,191,36,0.6), 0 5px 20px rgba(0,0,0,0.5)" : "none",
-                              transform: isSelected ? "scale(1.2) translateY(-2px)" : "none",
+                              boxShadow: isSelected ? "0 0 20px rgba(251,191,36,0.6), 0 3px 10px rgba(0,0,0,0.5)" : "none",
+                              transform: isSelected ? "scale(1.15) translateY(-1px)" : "none",
                               zIndex: isSelected ? 30 : 1,
                             }}>
                             {val}
-                            {isSelected && <div className="absolute inset-0 bg-white/10 rounded-xl animate-pulse" />}
+                            {isSelected && <div className="absolute inset-0 bg-white/10 rounded-lg animate-pulse" />}
                           </button>
                         );
                       })}
