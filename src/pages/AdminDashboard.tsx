@@ -173,10 +173,29 @@ const AdminDashboard = () => {
 
   // ── Game state update helper ──
   const updateGameState = async (patch: Partial<GameState>) => {
-    if (!selectedRoomId || !gameState) return;
-    const { error } = await supabase.from("game_state").update({ ...patch, updated_at: new Date().toISOString() }).eq("room_id", selectedRoomId);
+    if (!selectedRoomId) return;
+
+    // Create full payload for upsert in case row doesn't exist
+    const payload = {
+      room_id: selectedRoomId,
+      ...(gameState || {
+        betting_phase: "1ST_BET",
+        betting_status: "CLOSED",
+        timer_seconds: 0,
+        current_round: 1,
+        result: null,
+        target_card: null,
+        is_live: false
+      }),
+      ...patch,
+      updated_at: new Date().toISOString()
+    };
+
+    // Use upsert to create if missing
+    const { error } = await supabase.from("game_state").upsert(payload, { onConflict: 'room_id' });
     if (error) { toast({ title: "Error", description: error.message, variant: "destructive" }); return; }
-    setGameState(prev => prev ? { ...prev, ...patch } : prev);
+
+    setGameState(prev => prev ? { ...prev, ...patch } : payload as GameState);
   };
 
   // ── OPEN / CLOSE betting ──
