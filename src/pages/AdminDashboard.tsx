@@ -9,7 +9,7 @@ import { useToast } from "@/hooks/use-toast";
 import {
   LogOut, ShieldCheck, Users, CheckCircle, Ban, Clock, Filter, Search,
   TrendingUp, UserCheck, UserX, Tv2, WifiOff, Wrench, CircleDot,
-  ChevronDown, Send, Wifi, RefreshCw, Trophy, AlertTriangle,
+  ChevronDown, Send, Wifi, RefreshCw, Trophy, AlertTriangle, Coins
 } from "lucide-react";
 
 // ─── Types ───────────────────────────────────────────────────────
@@ -203,16 +203,27 @@ const AdminDashboard = () => {
     setConfirmModal({ open: false, outcome: null });
     await updateGameState({ result: outcome, betting_status: "CLOSED" });
     // Save to history
-    await supabase.from("game_history").insert({
-      room_id: selectedRoomId,
-      round_number: gameState?.current_round || 1,
-      result: outcome,
-      target_card: selectedCard,
-      total_payout: 0,
-    });
+    // Payout logic via RPC
+    const { data: settleData, error: settleError } = await (supabase.rpc("settle_round" as any, {
+      p_room_id: selectedRoomId,
+      p_round_number: gameState?.current_round || 1,
+      p_winning_side: outcome
+    }) as any);
+
+    if (settleError) {
+      console.error("Settlement error:", settleError);
+    } else {
+      console.log("Settlement result:", settleData);
+    }
+
     // Advance round
     await updateGameState({ current_round: (gameState?.current_round || 1) + 1, result: outcome });
-    toast({ title: `🏆 ${outcome} Wins!`, description: "Result triggered and broadcast." });
+    toast({ 
+      title: `🏆 ${outcome} Wins!`, 
+      description: settleData?.success 
+        ? `Round settled: ${settleData.processed} bets processed.` 
+        : "Round triggered, but settlement failed." 
+    });
     fetchHistory();
   };
 
@@ -278,6 +289,12 @@ const AdminDashboard = () => {
             </div>
           </div>
           <div className="flex items-center gap-3">
+            <button 
+              onClick={() => navigate("/admin/token-management")}
+              className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-bold text-amber-500/80 hover:text-amber-400 border border-amber-500/20 hover:border-amber-500/40 transition-all bg-amber-500/5"
+            >
+              <Coins className="w-3.5 h-3.5" />Tokens
+            </button>
             <div className="flex items-center gap-1.5 text-emerald-400 text-xs">
               <Wifi className="w-3.5 h-3.5" />
               <span>{latency}ms</span>

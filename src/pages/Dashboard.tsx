@@ -2,7 +2,7 @@ import { useEffect, useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { logout } from "@/lib/auth";
-import { LogOut, Wallet, UserCircle, Headphones, Lock, Users, AlertTriangle, TrendingUp, ArrowDownLeft, Plus } from "lucide-react";
+import { LogOut, Wallet, UserCircle, Headphones, Lock, Users, AlertTriangle, TrendingUp, ArrowDownLeft, Plus, History as HistoryIcon } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
 type Room = {
@@ -32,11 +32,11 @@ const Dashboard = () => {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) { navigate("/login"); return; }
 
-      const { data: profile } = await supabase
+      const { data: profile } = await (supabase
         .from("profiles")
-        .select("name, status, phone")
+        .select("*")
         .eq("id", user.id)
-        .maybeSingle();
+        .maybeSingle() as any);
 
       if (!profile || profile.status !== "APPROVED") {
         await logout();
@@ -45,6 +45,7 @@ const Dashboard = () => {
       }
       setUserName(profile.name);
       setUserPhone(profile.phone?.replace(/[^0-9]/g, "") || user.id.slice(0, 10));
+      setBalance(profile.token_balance || 0);
     };
     checkAuth();
   }, [navigate]);
@@ -102,6 +103,21 @@ const Dashboard = () => {
       .subscribe();
 
     return () => { supabase.removeChannel(channel); };
+  }, []);
+
+  // ── Real-time balance subscription ──
+  useEffect(() => {
+    let sub: any;
+    const setup = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+      sub = supabase.channel(`profile-${user.id}`)
+        .on("postgres_changes", { event: "UPDATE", schema: "public", table: "profiles", filter: `id=eq.${user.id}` },
+          (p) => setBalance((p.new as any).token_balance || 0))
+        .subscribe();
+    };
+    setup();
+    return () => { if (sub) supabase.removeChannel(sub); };
   }, []);
 
   const handleLogout = async () => { await logout(); navigate("/login"); };
@@ -184,7 +200,12 @@ const Dashboard = () => {
             </div>
           </div>
           <div className="flex items-center gap-2">
-            <button className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-bold uppercase tracking-wider bg-amber-500/10 border border-amber-500/30 text-amber-400 hover:bg-amber-500/20 transition-all">
+            <button 
+              onClick={() => navigate("/dashboard/transactions")}
+              className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-bold uppercase tracking-wider bg-amber-500/10 border border-amber-500/30 text-amber-400 hover:bg-amber-500/20 transition-all">
+              <HistoryIcon className="w-3.5 h-3.5" /> History
+            </button>
+            <button className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-bold uppercase tracking-wider bg-white/5 border border-white/10 text-white/40 hover:text-white/60 hover:bg-white/10 transition-all">
               <Plus className="w-3.5 h-3.5" />Top Up
             </button>
             <button className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-bold uppercase tracking-wider bg-white/5 border border-white/10 text-white/40 hover:text-white/60 hover:bg-white/10 transition-all">
