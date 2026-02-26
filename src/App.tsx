@@ -12,6 +12,9 @@ import Dashboard from "./pages/Dashboard";
 import BettingRoom from "./pages/BettingRoom";
 import NotFound from "./pages/NotFound";
 
+import MyTransactions from "./pages/MyTransactions";
+import AdminTokenManagement from "./pages/AdminTokenManagement";
+
 const queryClient = new QueryClient();
 
 const App = () => (
@@ -26,7 +29,9 @@ const App = () => (
           <Route path="/signup" element={<Signup />} />
           <Route path="/admin/login" element={<AdminLogin />} />
           <Route path="/admin/dashboard" element={<AdminDashboard />} />
+          <Route path="/admin/token-management" element={<AdminTokenManagement />} />
           <Route path="/dashboard" element={<Dashboard />} />
+          <Route path="/dashboard/transactions" element={<MyTransactions />} />
           <Route path="/room/:roomId" element={<BettingRoom />} />
           <Route path="*" element={<NotFound />} />
         </Routes>

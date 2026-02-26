@@ -3,6 +3,7 @@ import { useNavigate, useParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { logout } from "@/lib/auth";
 import { ArrowLeft, Undo2 } from "lucide-react";
+import { useToast } from "@/hooks/use-toast";
 import VideoPlayer from "@/components/room/VideoPlayer";
 import PortraitOverlay from "@/components/room/PortraitOverlay";
 
@@ -28,6 +29,7 @@ type GameState = {
 const BettingRoom = () => {
     const { roomId = "" } = useParams();
     const navigate = useNavigate();
+    const { toast } = useToast();
 
     // Room info
     const [roomInfo, setRoomInfo] = useState({ name: "Table", minBet: 500, streamUrl: undefined as string | undefined });
@@ -39,9 +41,9 @@ const BettingRoom = () => {
     gameStateRef.current = gameState;
 
     // Local betting state — use refs so subscription can read latest without re-subscribing
-    const [balance, setBalance] = useState(36000);
-    const balanceRef = useRef(36000);
-    const [selectedChip, setSelectedChip] = useState<number>(500);
+    const [balance, setBalance] = useState(0);
+    const balanceRef = useRef(0);
+    const [selectedChip, setSelectedChip] = useState<number>(0);
     const [betHistory, setBetHistory] = useState<BetEntry[]>([]);
     const betHistoryRef = useRef<BetEntry[]>([]);
     betHistoryRef.current = betHistory;
@@ -111,19 +113,6 @@ const BettingRoom = () => {
 
                     // ── Result triggered by admin ──
                     if (newState.result && newState.result !== prev?.result) {
-                        const winSide = newState.result.toLowerCase() as "andar" | "bahar";
-                        const currentBets = betHistoryRef.current;
-                        const placed = betPlacedRef.current;
-                        const myAndar = currentBets.filter(b => b.side === "andar").reduce((s, v) => s + v.amount, 0);
-                        const myBahar = currentBets.filter(b => b.side === "bahar").reduce((s, v) => s + v.amount, 0);
-
-                        if (placed) {
-                            const win = winSide === "andar" ? myAndar : myBahar;
-                            const lose = winSide === "andar" ? myBahar : myAndar;
-                            if (win > 0) { setBalance(b => { balanceRef.current = b + win * 2; return b + win * 2; }); }
-                            if (lose > 0) { setBalance(b => { balanceRef.current = b - lose; return b - lose; }); }
-                        }
-
                         setLocalResult(newState.result);
                         setShowResultPopup(true);
                         setTimeout(() => setShowResultPopup(false), 5000);
@@ -148,16 +137,38 @@ const BettingRoom = () => {
         // ⚠️ roomId only — gameState intentionally excluded to prevent re-subscription
     }, [roomId]); // eslint-disable-line react-hooks/exhaustive-deps
 
-    // ── Auth check ──
+    // ── Auth & Profile check ──
     useEffect(() => {
         const check = async () => {
             const { data: { user } } = await supabase.auth.getUser();
             if (!user) { navigate("/login"); return; }
-            const { data: profile } = await supabase.from("profiles").select("status").eq("id", user.id).maybeSingle();
+            const { data: profile } = await (supabase.from("profiles").select("*").eq("id", user.id).maybeSingle() as any);
             if (!profile || profile.status !== "APPROVED") { await logout(); navigate("/login"); }
+            else {
+                setBalance(profile.token_balance || 0);
+                balanceRef.current = profile.token_balance || 0;
+            }
         };
         check();
     }, [navigate]);
+
+    // ── Real-time balance sync ──
+    useEffect(() => {
+        let authUser: any;
+        supabase.auth.getUser().then(({ data }) => { authUser = data.user; });
+
+        const channel = supabase
+            .channel(`player-profile-${roomId}`)
+            .on("postgres_changes", { event: "UPDATE", schema: "public", table: "profiles" },
+                (p) => {
+                    if (authUser && p.new.id === authUser.id) {
+                        setBalance((p.new as any).token_balance || 0);
+                        balanceRef.current = (p.new as any).token_balance || 0;
+                    }
+                })
+            .subscribe();
+        return () => { supabase.removeChannel(channel); };
+    }, [roomId]);
 
     // ── Portrait detection ──
     useEffect(() => {
@@ -182,10 +193,45 @@ const BettingRoom = () => {
         setBalance(b => { balanceRef.current = b + last.amount; return b + last.amount; });
     };
 
-    const handlePlaceBet = () => {
+    const handlePlaceBet = async () => {
         if (!bettingOpen || totalBet === 0 || betPlaced) return;
+        
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) return;
+
+        // Place bet on Andar
+        if (andarTotal > 0) {
+            const { data, error } = await (supabase.rpc("place_bet" as any, {
+                p_user_id: user.id,
+                p_room_id: roomId,
+                p_round_number: gameState?.current_round || 1,
+                p_side: "ANDAR",
+                p_amount: andarTotal
+            }) as any);
+            if (error || !(data as any).success) {
+                toast({ title: "Bet Failed", description: error?.message || (data as any)?.message, variant: "destructive" });
+                return;
+            }
+        }
+
+        // Place bet on Bahar
+        if (baharTotal > 0) {
+            const { data, error } = await (supabase.rpc("place_bet" as any, {
+                p_user_id: user.id,
+                p_room_id: roomId,
+                p_round_number: gameState?.current_round || 1,
+                p_side: "BAHAR",
+                p_amount: baharTotal
+            }) as any);
+            if (error || !(data as any).success) {
+                toast({ title: "Bet Failed", description: error?.message || (data as any)?.message, variant: "destructive" });
+                return;
+            }
+        }
+
         setBetPlaced(true);
         betPlacedRef.current = true;
+        toast({ title: "Bets Placed!", description: `Total: ₹${totalBet.toLocaleString()}` });
     };
 
     // Parse joker card
