@@ -17,6 +17,7 @@ type Room = {
   id: string; name: string; label: string;
   min_bet: number; max_bet: number;
   status: "ONLINE" | "OFFLINE" | "LIVE" | "MAINTENANCE";
+  stream_url?: string;
 };
 
 type GameState = {
@@ -108,7 +109,7 @@ const AdminDashboard = () => {
 
   // ── Fetch rooms ──
   const fetchRooms = useCallback(async () => {
-    const { data } = await supabase.from("rooms").select("id,name,label,min_bet,max_bet,status").order("created_at");
+    const { data } = await supabase.from("rooms").select("id,name,label,min_bet,max_bet,status,stream_url").order("created_at");
     if (data && data.length > 0) {
       setRooms(data as Room[]);
       if (!selectedRoomId) setSelectedRoomId(data[0].id);
@@ -241,6 +242,15 @@ const AdminDashboard = () => {
     const { error } = await supabase.from("rooms").update({ status: newStatus }).eq("id", room.id);
     if (error) { toast({ title: "Error", description: error.message, variant: "destructive" }); }
     else { toast({ title: "Room Updated", description: `${room.name} → ${newStatus}` }); }
+    setRoomActionLoading(null);
+  };
+
+  // ── Room stream URL update ──
+  const handleUpdateStreamUrl = async (roomId: string, url: string) => {
+    setRoomActionLoading(`url-${roomId}`);
+    const { error } = await supabase.from("rooms").update({ stream_url: url }).eq("id", roomId);
+    if (error) { toast({ title: "Error", description: error.message, variant: "destructive" }); }
+    else { toast({ title: "Stream URL Updated", description: "The live stream link has been updated." }); }
     setRoomActionLoading(null);
   };
 
@@ -560,8 +570,8 @@ const AdminDashboard = () => {
               <table className="w-full">
                 <thead>
                   <tr className="bg-white/5 border-b border-white/10">
-                    {["Room", "Min Bet", "Max Bet", "Status", "Control"].map((h, i) => (
-                      <th key={h} className={`py-4 px-6 text-[11px] font-black uppercase tracking-widest text-white/40 ${i === 4 ? "text-right" : "text-left"}`}>{h}</th>
+                    {["Room", "Min Bet", "Max Bet", "Stream URL", "Status", "Control"].map((h, i) => (
+                      <th key={h} className={`py-4 px-6 text-[11px] font-black uppercase tracking-widest text-white/40 ${i === 5 ? "text-right" : "text-left"}`}>{h}</th>
                     ))}
                   </tr>
                 </thead>
@@ -574,6 +584,21 @@ const AdminDashboard = () => {
                       </td>
                       <td className="py-4 px-6 text-white/60 font-bold">₹{room.min_bet.toLocaleString()}</td>
                       <td className="py-4 px-6 text-white/60 font-bold">₹{room.max_bet.toLocaleString()}</td>
+                      <td className="py-4 px-6">
+                        <div className="flex items-center gap-2">
+                          <Input
+                            defaultValue={room.stream_url || ""}
+                            placeholder="Paste YouTube Link..."
+                            className="bg-black/40 border-white/10 text-white h-8 text-[11px] w-[200px]"
+                            onBlur={(e) => {
+                              if (e.target.value !== room.stream_url) {
+                                handleUpdateStreamUrl(room.id, e.target.value);
+                              }
+                            }}
+                            disabled={roomActionLoading === `url-${room.id}`}
+                          />
+                        </div>
+                      </td>
                       <td className="py-4 px-6">{roomStatusBadge(room.status)}</td>
                       <td className="py-4 px-6">
                         <div className="flex gap-2 justify-end flex-wrap">
