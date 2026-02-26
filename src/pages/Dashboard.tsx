@@ -20,7 +20,7 @@ type Room = {
 const Dashboard = () => {
   const [userName, setUserName] = useState("");
   const [userPhone, setUserPhone] = useState("");
-  const [balance, setBalance] = useState(36000);
+  const [balance, setBalance] = useState(0);
   const [rooms, setRooms] = useState<Room[]>([]);
   const [roomsLoading, setRoomsLoading] = useState(true);
   const navigate = useNavigate();

@@ -41,9 +41,9 @@ const BettingRoom = () => {
     gameStateRef.current = gameState;
 
     // Local betting state — use refs so subscription can read latest without re-subscribing
-    const [balance, setBalance] = useState(36000);
-    const balanceRef = useRef(36000);
-    const [selectedChip, setSelectedChip] = useState<number>(500);
+    const [balance, setBalance] = useState(0);
+    const balanceRef = useRef(0);
+    const [selectedChip, setSelectedChip] = useState<number>(0);
     const [betHistory, setBetHistory] = useState<BetEntry[]>([]);
     const betHistoryRef = useRef<BetEntry[]>([]);
     betHistoryRef.current = betHistory;
