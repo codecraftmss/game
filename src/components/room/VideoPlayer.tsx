@@ -33,10 +33,12 @@ const VideoPlayer = ({ streamUrl }: VideoPlayerProps) => {
             const hls = new Hls({
                 lowLatencyMode: true,
                 backBufferLength: 0,
-                maxBufferLength: 4,
-                maxMaxBufferLength: 8,
-                liveSyncDurationCount: 2,
-                liveMaxLatencyDurationCount: 4,
+                maxBufferLength: 2,
+                maxMaxBufferLength: 4,
+                liveSyncDurationCount: 1,
+                liveMaxLatencyDurationCount: 3,
+                // Auto-speed-up playback to catch live edge if drifting behind
+                maxLiveSyncPlaybackRate: 1.5,
             });
             hls.loadSource(streamUrl);
             hls.attachMedia(video);
@@ -44,6 +46,7 @@ const VideoPlayer = ({ streamUrl }: VideoPlayerProps) => {
                 video.play().catch(() => { });
             });
             return () => hls.destroy();
+
         } else if (video.canPlayType("application/vnd.apple.mpegurl")) {
             video.src = streamUrl;
             video.play().catch(() => { });

@@ -229,29 +229,46 @@ const AdminDashboard = () => {
   // ── Trigger result ──
   const handleTriggerResult = async (outcome: "ANDAR" | "BAHAR") => {
     setConfirmModal({ open: false, outcome: null });
+
+    const roundNumber = gameState?.current_round || 1;
+
+    // Close betting + set result
     await updateGameState({ result: outcome, betting_status: "CLOSED" });
-    // Save to history
-    // Payout logic via RPC
+
+    // Settle bets via RPC (credits winners)
     const { data: settleData, error: settleError } = await (supabase.rpc("settle_round" as any, {
       p_room_id: selectedRoomId,
-      p_round_number: gameState?.current_round || 1,
+      p_round_number: roundNumber,
       p_winning_side: outcome
     }) as any);
 
     if (settleError) {
       console.error("Settlement error:", settleError);
-    } else {
-      console.log("Settlement result:", settleData);
     }
 
-    // Advance round
-    await updateGameState({ current_round: (gameState?.current_round || 1) + 1, result: outcome });
-    toast({ 
-      title: `🏆 ${outcome} Wins!`, 
-      description: settleData?.success 
-        ? `Round settled: ${settleData.processed} bets processed.` 
-        : "Round triggered, but settlement failed." 
+    // ── INSERT into game_history (this is what the A/B scoreboard reads) ──
+    const { error: historyError } = await supabase.from("game_history").insert({
+      room_id: selectedRoomId,
+      round_number: roundNumber,
+      result: outcome,
+      target_card: gameState?.target_card || null,
+      total_payout: (settleData as any)?.total_payout || 0,
+    } as any);
+
+    if (historyError) {
+      console.error("game_history insert error:", historyError);
+    }
+
+    // Advance round number
+    await updateGameState({ current_round: roundNumber + 1, result: outcome });
+
+    toast({
+      title: `🏆 ${outcome} Wins!`,
+      description: (settleData as any)?.success
+        ? `Round settled: ${(settleData as any).processed} bets processed.`
+        : "Round triggered, but settlement failed.",
     });
+
     fetchHistory();
   };
 

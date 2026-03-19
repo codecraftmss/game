@@ -1,18 +1,17 @@
-import { useEffect, useState, useRef, useCallback } from "react";
+import { useEffect, useState, useRef } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { logout } from "@/lib/auth";
-import { ArrowLeft, Undo2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import VideoPlayer from "@/components/room/VideoPlayer";
 import PortraitOverlay from "@/components/room/PortraitOverlay";
 
 const CHIPS = [
-    { value: 500, label: "500", color: "#e74c3c", shadow: "#c0392b" },
+    { value: 500, label: "500", color: "#c0392b", shadow: "#922b21" },
     { value: 1000, label: "1K", color: "#27ae60", shadow: "#1e8449" },
     { value: 2000, label: "2K", color: "#8e44ad", shadow: "#6c3483" },
     { value: 5000, label: "5K", color: "#d35400", shadow: "#a04000" },
-    { value: 10000, label: "10K", color: "#2c3e50", shadow: "#1a252f" },
+    { value: 10000, label: "10K", color: "#d4ac0d", shadow: "#9a7d0a" },
 ];
 
 type BetEntry = { side: "andar" | "bahar"; amount: number };
@@ -31,19 +30,16 @@ const BettingRoom = () => {
     const navigate = useNavigate();
     const { toast } = useToast();
 
-    // Room info
     const [roomInfo, setRoomInfo] = useState({ name: "Table", minBet: 500, streamUrl: undefined as string | undefined });
     const [roomLoading, setRoomLoading] = useState(true);
 
-    // Admin-controlled game state — use ref for subscription closure safety
     const [gameState, setGameState] = useState<GameState | null>(null);
     const gameStateRef = useRef<GameState | null>(null);
     gameStateRef.current = gameState;
 
-    // Local betting state — use refs so subscription can read latest without re-subscribing
     const [balance, setBalance] = useState(0);
     const balanceRef = useRef(0);
-    const [selectedChip, setSelectedChip] = useState<number>(0);
+    const [selectedChip, setSelectedChip] = useState<number>(500);
     const [betHistory, setBetHistory] = useState<BetEntry[]>([]);
     const betHistoryRef = useRef<BetEntry[]>([]);
     betHistoryRef.current = betHistory;
@@ -54,16 +50,20 @@ const BettingRoom = () => {
     const [showResultPopup, setShowResultPopup] = useState(false);
     const [localResult, setLocalResult] = useState<"ANDAR" | "BAHAR" | null>(null);
     const [isPortrait, setIsPortrait] = useState(false);
-    const [showJoker, setShowJoker] = useState(false);
 
-    // Derived from state (not ref — for rendering)
+    // Track first and second bet totals per phase
+    const [firstBetTotal, setFirstBetTotal] = useState(0);
+    const [secondBetTotal, setSecondBetTotal] = useState(0);
+
+    // Round history for the A/B dots indicator
+    const [roundHistory, setRoundHistory] = useState<Array<{ result: "ANDAR" | "BAHAR" }>>([]);
+
     const andarBets = betHistory.filter(b => b.side === "andar");
     const baharBets = betHistory.filter(b => b.side === "bahar");
     const andarTotal = andarBets.reduce((s, v) => s + v.amount, 0);
     const baharTotal = baharBets.reduce((s, v) => s + v.amount, 0);
     const totalBet = andarTotal + baharTotal;
     const bettingOpen = gameState?.betting_status === "OPEN";
-    const roundId = `R${gameState?.current_round ?? 1}`;
 
     // ── Fetch room ──
     useEffect(() => {
@@ -71,18 +71,9 @@ const BettingRoom = () => {
         const fetchRoom = async () => {
             const { data, error } = await supabase
                 .from("rooms").select("name, min_bet, status, stream_url").eq("id", roomId).maybeSingle();
-            if (error) {
-                // Network / RLS error — don't redirect, just log
-                console.error("Room fetch error:", error.message);
-                setRoomLoading(false);
-                return;
-            }
-            if (!data || data.status !== "ONLINE") {
-                navigate("/dashboard");
-            } else {
-                setRoomInfo({ name: data.name, minBet: Number(data.min_bet), streamUrl: data.stream_url ?? undefined });
-                setRoomLoading(false);
-            }
+            if (error) { console.error("Room fetch error:", error.message); setRoomLoading(false); return; }
+            if (!data || data.status !== "ONLINE") { navigate("/dashboard"); }
+            else { setRoomInfo({ name: data.name, minBet: Number(data.min_bet), streamUrl: data.stream_url ?? undefined }); setRoomLoading(false); }
         };
         fetchRoom();
     }, [roomId, navigate]);
@@ -94,7 +85,44 @@ const BettingRoom = () => {
             .then(({ data }) => { if (data) setGameState(data as GameState); });
     }, [roomId]);
 
-    // ── Real-time game state — stable subscription (no gameState in deps) ──
+    // ── Fetch + subscribe to round history for A/B scoreboard ──
+    useEffect(() => {
+        if (!roomId) return;
+        // Initial fetch (latest 13 rounds, oldest first)
+        supabase.from("game_history")
+            .select("result")
+            .eq("room_id", roomId)
+            .not("result", "is", null)
+            .order("created_at", { ascending: false })
+            .limit(13)
+            .then(({ data }) => {
+                if (data) setRoundHistory([...data].reverse() as Array<{ result: "ANDAR" | "BAHAR" }>);
+            });
+
+        // Subscribe to new inserts (each new round result)
+        const ch = supabase
+            .channel(`room-history-${roomId}`)
+            .on("postgres_changes", {
+                event: "INSERT",
+                schema: "public",
+                table: "game_history",
+                filter: `room_id=eq.${roomId}`,
+            }, (payload) => {
+                const newEntry = payload.new as { result: "ANDAR" | "BAHAR" };
+                if (newEntry.result) {
+                    setRoundHistory(prev => {
+                        const next = [...prev, { result: newEntry.result }];
+                        return next.slice(-13); // keep last 13
+                    });
+                }
+            })
+            .subscribe();
+
+        return () => { supabase.removeChannel(ch); };
+    }, [roomId]);
+
+
+    // ── Real-time game state ──
     useEffect(() => {
         if (!roomId) return;
 
@@ -102,39 +130,74 @@ const BettingRoom = () => {
             .channel(`room-gs-${roomId}`)
             .on(
                 "postgres_changes",
-                { event: "UPDATE", schema: "public", table: "game_state" },
+                {
+                    event: "UPDATE",
+                    schema: "public",
+                    table: "game_state",
+                    filter: `room_id=eq.${roomId}`,   // server-side filter — required when RLS is enabled
+                },
                 (payload) => {
-                    const incoming = payload.new as any;
-                    // Only handle updates for THIS room
-                    if (incoming.room_id !== roomId) return;
-
-                    const newState = incoming as GameState;
+                    const newState = payload.new as GameState;
                     const prev = gameStateRef.current;
 
-                    // ── Result triggered by admin ──
                     if (newState.result && newState.result !== prev?.result) {
                         setLocalResult(newState.result);
                         setShowResultPopup(true);
                         setTimeout(() => setShowResultPopup(false), 5000);
                     }
-
-                    // ── Betting re-opened (new round) ──
                     if (newState.betting_status === "OPEN" && prev?.betting_status === "CLOSED") {
-                        setBetHistory([]);
-                        betHistoryRef.current = [];
-                        setBetPlaced(false);
-                        betPlacedRef.current = false;
-                        setLocalResult(null);
-                        setShowResultPopup(false);
+                        setBetHistory([]); betHistoryRef.current = [];
+                        setBetPlaced(false); betPlacedRef.current = false;
+                        setLocalResult(null); setShowResultPopup(false);
+                        setFirstBetTotal(0); setSecondBetTotal(0);
                     }
-
                     setGameState(newState);
                 }
             )
-            .subscribe();
+            .subscribe((status) => {
+                // If subscription fails, re-fetch as fallback
+                if (status === "CHANNEL_ERROR" || status === "TIMED_OUT") {
+                    console.warn("Realtime issue:", status, "— polling game state");
+                    supabase.from("game_state").select("*").eq("room_id", roomId).maybeSingle()
+                        .then(({ data }) => { if (data) setGameState(data as GameState); });
+                }
+            });
 
         return () => { supabase.removeChannel(channel); };
-        // ⚠️ roomId only — gameState intentionally excluded to prevent re-subscription
+    }, [roomId]); // eslint-disable-line react-hooks/exhaustive-deps
+
+    // ── Polling fallback (every 5s) — catches updates if WebSocket is stale ──
+    useEffect(() => {
+        if (!roomId) return;
+        const poll = setInterval(async () => {
+            const { data } = await supabase.from("game_state").select("*").eq("room_id", roomId).maybeSingle();
+            if (!data) return;
+            const incoming = data as GameState;
+            const prev = gameStateRef.current;
+
+            // Only update if something actually changed
+            if (
+                incoming.betting_status !== prev?.betting_status ||
+                incoming.betting_phase !== prev?.betting_phase ||
+                incoming.result !== prev?.result ||
+                incoming.target_card !== prev?.target_card ||
+                incoming.current_round !== prev?.current_round
+            ) {
+                if (incoming.result && incoming.result !== prev?.result) {
+                    setLocalResult(incoming.result);
+                    setShowResultPopup(true);
+                    setTimeout(() => setShowResultPopup(false), 5000);
+                }
+                if (incoming.betting_status === "OPEN" && prev?.betting_status === "CLOSED") {
+                    setBetHistory([]); betHistoryRef.current = [];
+                    setBetPlaced(false); betPlacedRef.current = false;
+                    setLocalResult(null); setShowResultPopup(false);
+                    setFirstBetTotal(0); setSecondBetTotal(0);
+                }
+                setGameState(incoming);
+            }
+        }, 5000); // poll every 5 seconds
+        return () => clearInterval(poll);
     }, [roomId]); // eslint-disable-line react-hooks/exhaustive-deps
 
     // ── Auth & Profile check ──
@@ -144,10 +207,7 @@ const BettingRoom = () => {
             if (!user) { navigate("/login"); return; }
             const { data: profile } = await (supabase.from("profiles").select("*").eq("id", user.id).maybeSingle() as any);
             if (!profile || profile.status !== "APPROVED") { await logout(); navigate("/login"); }
-            else {
-                setBalance(profile.token_balance || 0);
-                balanceRef.current = profile.token_balance || 0;
-            }
+            else { setBalance(profile.token_balance || 0); balanceRef.current = profile.token_balance || 0; }
         };
         check();
     }, [navigate]);
@@ -156,16 +216,14 @@ const BettingRoom = () => {
     useEffect(() => {
         let authUser: any;
         supabase.auth.getUser().then(({ data }) => { authUser = data.user; });
-
         const channel = supabase
             .channel(`player-profile-${roomId}`)
-            .on("postgres_changes", { event: "UPDATE", schema: "public", table: "profiles" },
-                (p) => {
-                    if (authUser && p.new.id === authUser.id) {
-                        setBalance((p.new as any).token_balance || 0);
-                        balanceRef.current = (p.new as any).token_balance || 0;
-                    }
-                })
+            .on("postgres_changes", { event: "UPDATE", schema: "public", table: "profiles" }, (p) => {
+                if (authUser && p.new.id === authUser.id) {
+                    setBalance((p.new as any).token_balance || 0);
+                    balanceRef.current = (p.new as any).token_balance || 0;
+                }
+            })
             .subscribe();
         return () => { supabase.removeChannel(channel); };
     }, [roomId]);
@@ -195,33 +253,23 @@ const BettingRoom = () => {
 
     const handlePlaceBet = async () => {
         if (!bettingOpen || totalBet === 0 || betPlaced) return;
-        
         const { data: { user } } = await supabase.auth.getUser();
         if (!user) return;
 
-        // Place bet on Andar
         if (andarTotal > 0) {
             const { data, error } = await (supabase.rpc("place_bet" as any, {
-                p_user_id: user.id,
-                p_room_id: roomId,
-                p_round_number: gameState?.current_round || 1,
-                p_side: "ANDAR",
-                p_amount: andarTotal
+                p_user_id: user.id, p_room_id: roomId,
+                p_round_number: gameState?.current_round || 1, p_side: "ANDAR", p_amount: andarTotal
             }) as any);
             if (error || !(data as any).success) {
                 toast({ title: "Bet Failed", description: error?.message || (data as any)?.message, variant: "destructive" });
                 return;
             }
         }
-
-        // Place bet on Bahar
         if (baharTotal > 0) {
             const { data, error } = await (supabase.rpc("place_bet" as any, {
-                p_user_id: user.id,
-                p_room_id: roomId,
-                p_round_number: gameState?.current_round || 1,
-                p_side: "BAHAR",
-                p_amount: baharTotal
+                p_user_id: user.id, p_room_id: roomId,
+                p_round_number: gameState?.current_round || 1, p_side: "BAHAR", p_amount: baharTotal
             }) as any);
             if (error || !(data as any).success) {
                 toast({ title: "Bet Failed", description: error?.message || (data as any)?.message, variant: "destructive" });
@@ -229,8 +277,10 @@ const BettingRoom = () => {
             }
         }
 
-        setBetPlaced(true);
-        betPlacedRef.current = true;
+        if (gameState?.betting_phase === "1ST_BET") setFirstBetTotal(totalBet);
+        else if (gameState?.betting_phase === "2ND_BET") setSecondBetTotal(totalBet);
+
+        setBetPlaced(true); betPlacedRef.current = true;
         toast({ title: "Bets Placed!", description: `Total: ₹${totalBet.toLocaleString()}` });
     };
 
@@ -250,7 +300,7 @@ const BettingRoom = () => {
 
     if (roomLoading) {
         return (
-            <div className="room-root" style={{ display: "flex", alignItems: "center", justifyContent: "center", background: "#0d1b2a" }}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "center", background: "#0d0d0d", width: "100vw", height: "100vh" }}>
                 <div style={{ textAlign: "center", color: "rgba(255,255,255,0.5)" }}>
                     <div style={{ fontSize: 32, marginBottom: 12 }}>🃏</div>
                     <div style={{ fontSize: 13, letterSpacing: "0.15em", textTransform: "uppercase" }}>Loading Table…</div>
@@ -260,224 +310,302 @@ const BettingRoom = () => {
     }
 
     return (
-        <div className="room-root">
+        <div style={{ position: "relative", width: "100vw", height: "100vh", background: "#000", overflow: "hidden", fontFamily: "'Inter', sans-serif" }}>
             {isPortrait && <PortraitOverlay />}
-            <div className="absolute inset-0 z-0">
+
+            {/* ── VIDEO BACKGROUND ── */}
+            <div style={{ position: "absolute", inset: 0, zIndex: 0 }}>
                 <VideoPlayer streamUrl={roomInfo.streamUrl} />
             </div>
 
-            {/* TOP BAR */}
-            <div className="absolute top-0 left-0 right-0 z-20 flex items-center justify-between px-3 py-2 bg-gradient-to-b from-black/70 to-transparent">
-                <button onClick={() => navigate("/dashboard")} className="flex items-center gap-1 text-white/70 hover:text-white text-xs">
-                    <ArrowLeft className="w-3.5 h-3.5" /><span className="hidden sm:inline">Lobby</span>
-                </button>
-                <div className="flex items-center gap-1.5">
-                    <img src="/card_fan_logo.png" alt="" className="w-5 h-auto" />
-                    <span className="text-amber-400 font-bold text-xs tracking-wider">{roomInfo.name}</span>
-                    {gameState?.betting_phase && (
-                        <span className="text-white/30 text-[9px] border border-white/10 rounded px-1.5 py-0.5">{gameState.betting_phase}</span>
-                    )}
-                </div>
-                <div className="flex items-center gap-2">
-                    <span className="text-white/40 text-[10px] font-mono">{roundId}</span>
-                    <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full ${bettingOpen
-                        ? "bg-emerald-500/30 text-emerald-400 border border-emerald-500/40"
-                        : "bg-red-500/30 text-red-400 border border-red-500/40"
-                        }`}>
-                        {bettingOpen ? "OPEN" : "CLOSED"}
+            {/* ── TOP BAR ── */}
+            <div style={{
+                position: "absolute", top: 0, left: 0, right: 0, zIndex: 20,
+                display: "flex", alignItems: "center", justifyContent: "space-between",
+                padding: "6px 12px",
+                background: "linear-gradient(to bottom, rgba(0,0,0,0.85), transparent)",
+            }}>
+                {/* Left: LIVE + Room Name */}
+                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                    <div style={{
+                        display: "flex", alignItems: "center", gap: 5,
+                        background: "#c0392b", borderRadius: 4,
+                        padding: "2px 7px", fontSize: 11, fontWeight: 800, color: "#fff", letterSpacing: "0.1em"
+                    }}>
+                        <span style={{ width: 6, height: 6, borderRadius: "50%", background: "#fff", display: "inline-block", animation: "pulse 1.5s infinite" }} />
+                        LIVE
+                    </div>
+                    <span style={{ color: "#fff", fontSize: 13, fontWeight: 700, letterSpacing: "0.08em" }}>
+                        {roomInfo.name.toUpperCase()} : MIN BET {roomInfo.minBet.toLocaleString()}
                     </span>
+                </div>
+
+                {/* Right: Icons */}
+                <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
+                    <button onClick={() => navigate("/dashboard")} style={{ background: "none", border: "none", cursor: "pointer", color: "rgba(255,255,255,0.7)", fontSize: 18, display: "flex", alignItems: "center" }} title="History">
+                        🕐
+                    </button>
+                    <button style={{ background: "none", border: "none", cursor: "pointer", color: "rgba(255,255,255,0.7)", fontSize: 18, display: "flex", alignItems: "center" }} title="Volume">
+                        🔊
+                    </button>
+                    <button style={{ background: "none", border: "none", cursor: "pointer", color: "rgba(255,255,255,0.7)", fontSize: 18, display: "flex", alignItems: "center" }} title="Fullscreen">
+                        ⛶
+                    </button>
                 </div>
             </div>
 
-            {/* LEFT PANEL */}
-            <div className="absolute left-0 top-0 bottom-0 z-20 flex flex-col justify-between py-10 px-1.5 w-[90px] sm:w-[110px] bg-gradient-to-r from-black/80 to-transparent">
-                <div className="space-y-1">
-                    <div className="text-[8px] text-white/40 uppercase tracking-wider">Balance</div>
-                    <div className="text-amber-400 font-black text-sm leading-tight">₹{balance.toLocaleString()}</div>
-                    <div className="text-[8px] text-white/30 mt-1">Min: ₹{roomInfo.minBet.toLocaleString()}</div>
+            {/* ── BOTTOM CONTROL PANEL (LEFT SIDE) ── */}
+            <div style={{
+                position: "absolute", bottom: 20, left: 100, zIndex: 20,
+                display: "flex", flexDirection: "column", alignItems: "flex-start",
+                padding: "10px 10px 10px 10px",
+                gap: 8,
+                background: "linear-gradient(to right, rgba(0,0,0,0.85) 80%, transparent)",
+                minWidth: 220,
+            }}>
+                {/* Logo */}
+                <div style={{ display: "flex", alignItems: "center", marginBottom: -70 }}>
+                    <img
+                        src="/royalstar_logo.png"
+                        alt="Royal Star Casino"
+                        style={{ height: 200, width: "auto", objectFit: "contain" }}
+                        onError={e => { (e.target as HTMLImageElement).style.display = "none"; }}
+                    />
                 </div>
 
-                {/* Chips */}
-                <div className="flex flex-col items-center gap-1.5">
+                {/* Chip Row */}
+                <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
                     {CHIPS.map(chip => {
-                        const isSelected = selectedChip === chip.value;
+                        const isSel = selectedChip === chip.value;
                         return (
                             <button key={chip.value}
                                 onClick={() => bettingOpen && !betPlaced && setSelectedChip(chip.value)}
                                 disabled={!bettingOpen || betPlaced}
-                                className="relative flex items-center justify-center rounded-full font-black text-white transition-all duration-100 select-none"
                                 style={{
-                                    width: isSelected ? 44 : 38, height: isSelected ? 44 : 38,
-                                    background: `radial-gradient(circle at 35% 35%, ${chip.color}ee, ${chip.shadow})`,
-                                    boxShadow: isSelected
-                                        ? `0 0 0 2.5px #f1c40f, 0 0 12px #f1c40f88`
-                                        : `0 3px 6px ${chip.shadow}99, inset 0 1px 0 rgba(255,255,255,0.2)`,
-                                    border: `1.5px dashed rgba(255,255,255,0.25)`,
-                                    fontSize: chip.value >= 10000 ? 9 : 10,
-                                    opacity: (!bettingOpen || betPlaced) ? 0.4 : 1,
+                                    width: isSel ? 42 : 36, height: isSel ? 42 : 36,
+                                    borderRadius: "50%",
+                                    background: `radial-gradient(circle at 35% 30%, ${chip.color}dd, ${chip.shadow})`,
+                                    border: isSel ? "2.5px solid #f1c40f" : "1.5px dashed rgba(255,255,255,0.3)",
+                                    boxShadow: isSel ? "0 0 10px #f1c40f99" : `0 3px 8px ${chip.shadow}88`,
+                                    color: "#fff", fontWeight: 900,
+                                    fontSize: chip.value >= 10000 ? 8 : 9,
+                                    cursor: bettingOpen && !betPlaced ? "pointer" : "not-allowed",
+                                    opacity: !bettingOpen || betPlaced ? 0.45 : 1,
+                                    position: "relative",
+                                    display: "flex", alignItems: "center", justifyContent: "center",
+                                    flexShrink: 0,
+                                    transition: "all 0.12s ease",
                                 }}>
-                                <div className="absolute inset-[5px] rounded-full border border-white/20 flex items-center justify-center">
-                                    <span className="font-black leading-none">{chip.label}</span>
+                                <div style={{
+                                    position: "absolute", inset: 4, borderRadius: "50%",
+                                    border: "1px solid rgba(255,255,255,0.2)",
+                                    display: "flex", alignItems: "center", justifyContent: "center",
+                                }}>
+                                    <span style={{ fontWeight: 900, fontSize: chip.value >= 10000 ? 8 : 9 }}>{chip.label}</span>
                                 </div>
-                                {isSelected && <div className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 bg-amber-400 rounded-full border border-black" />}
+                                {isSel && <div style={{ position: "absolute", top: -2, right: -2, width: 9, height: 9, background: "#f1c40f", borderRadius: "50%", border: "1px solid #000" }} />}
                             </button>
                         );
                     })}
                 </div>
 
-                {/* Controls */}
-                <div className="space-y-1.5">
-                    <button onClick={handleUndo} disabled={betHistory.length === 0 || !bettingOpen}
-                        className={`w-full flex items-center justify-center gap-1 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-all
-              ${betHistory.length > 0 && bettingOpen
-                                ? "bg-red-600/80 text-white hover:bg-red-600"
-                                : "bg-white/5 text-white/20 cursor-not-allowed"}`}>
-                        <Undo2 className="w-2.5 h-2.5" />Undo
+                {/* UNDO + PLACE BET buttons */}
+                <div style={{ display: "flex", gap: 6, width: "100%" }}>
+                    <button onClick={handleUndo}
+                        disabled={betHistory.length === 0 || !bettingOpen}
+                        style={{
+                            flex: 1, padding: "7px 0",
+                            borderRadius: 6, border: "none", cursor: betHistory.length > 0 && bettingOpen ? "pointer" : "not-allowed",
+                            background: betHistory.length > 0 && bettingOpen ? "#8b1a1a" : "rgba(255,255,255,0.08)",
+                            color: betHistory.length > 0 && bettingOpen ? "#fff" : "rgba(255,255,255,0.25)",
+                            fontWeight: 700, fontSize: 11, letterSpacing: "0.1em", textTransform: "uppercase",
+                            opacity: betHistory.length > 0 && bettingOpen ? 1 : 0.6,
+                        }}>
+                        UNDO
                     </button>
-                    <button onClick={handlePlaceBet} disabled={!bettingOpen || totalBet === 0 || betPlaced}
-                        className={`w-full py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all
-              ${bettingOpen && totalBet > 0 && !betPlaced
-                                ? "bg-gradient-to-b from-emerald-500 to-emerald-700 text-white shadow-lg shadow-emerald-900/50"
-                                : "bg-white/5 text-white/20 cursor-not-allowed"}`}>
-                        {betPlaced ? "✓ Placed" : "Place Bet"}
+                    <button onClick={handlePlaceBet}
+                        disabled={!bettingOpen || totalBet === 0 || betPlaced}
+                        style={{
+                            flex: 1.4, padding: "7px 0",
+                            borderRadius: 6, border: "none",
+                            cursor: bettingOpen && totalBet > 0 && !betPlaced ? "pointer" : "not-allowed",
+                            background: bettingOpen && totalBet > 0 && !betPlaced
+                                ? "linear-gradient(135deg, #27ae60, #1e8449)"
+                                : "rgba(255,255,255,0.08)",
+                            color: bettingOpen && totalBet > 0 && !betPlaced ? "#fff" : "rgba(255,255,255,0.25)",
+                            fontWeight: 800, fontSize: 11, letterSpacing: "0.1em", textTransform: "uppercase",
+                        }}>
+                        {betPlaced ? "✓ PLACED" : "PLACE BET"}
                     </button>
-                    <div className="text-[8px] text-white/50 space-y-0.5 pt-0.5">
-                        <div className="flex justify-between"><span>Andar</span><span className="text-white font-bold">₹{andarTotal.toLocaleString()}</span></div>
-                        <div className="flex justify-between"><span>Bahar</span><span className="text-white font-bold">₹{baharTotal.toLocaleString()}</span></div>
+                </div>
+
+                {/* Balance + Bet Info Row */}
+                <div style={{ display: "flex", gap: 6, width: "100%" }}>
+                    <div style={{
+                        flex: 1, background: "rgba(30,30,30,0.85)", border: "1px solid rgba(255,255,255,0.1)",
+                        borderRadius: 6, padding: "5px 8px",
+                    }}>
+                        <div style={{ color: "rgba(255,255,255,0.5)", fontSize: 8, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em" }}>BALANCE:</div>
+                        <div style={{ color: "#fff", fontWeight: 800, fontSize: 12, marginTop: 1 }}>₹{balance.toLocaleString()}</div>
+                    </div>
+                    <div style={{
+                        flex: 1.3, background: "rgba(30,30,30,0.85)", border: "1px solid rgba(255,255,255,0.1)",
+                        borderRadius: 6, padding: "5px 8px",
+                    }}>
+                        <div style={{ color: "rgba(255,255,255,0.5)", fontSize: 8, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em" }}>FIRST BET: ₹{firstBetTotal > 0 ? firstBetTotal.toLocaleString() : "0"}</div>
+                        <div style={{ color: "rgba(255,255,255,0.5)", fontSize: 8, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", marginTop: 2 }}>SECOND BET: ₹{secondBetTotal > 0 ? secondBetTotal.toLocaleString() : "0"}</div>
                     </div>
                 </div>
             </div>
 
-            {/* RIGHT PANEL */}
-            <div className="absolute right-0 top-0 bottom-0 z-20 flex flex-col items-center justify-between py-10 px-1.5 w-[60px] bg-gradient-to-l from-black/70 to-transparent">
-                <div className="text-white/50 font-bold tracking-widest uppercase"
-                    style={{ fontSize: 9, writingMode: "vertical-rl", transform: "rotate(180deg)" }}>
-                    {roomInfo.name}
-                </div>
-                <div />
-            </div>
+            {/* ── ANDAR / BAHAR BETTING AREA (CENTER-BOTTOM) ── */}
+            <div style={{
+                position: "absolute", bottom: 40, left: "50%", transform: "translateX(-50%)",
+                zIndex: 20,
+                display: "flex", flexDirection: "column",
+                width: "calc(100% - 440px)", maxWidth: 460, minWidth: 220,
+                height: 115,
+            }}>
+                <div style={{ position: "relative", width: "100%", height: "100%", display: "flex", flexDirection: "column" }}>
 
-            {/* ANDAR / BAHAR STACKED BUTTONS - Redesigned UI */}
-            <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-20 flex flex-col gap-0 px-2 h-[130px] sm:h-[140px] w-[calc(100%-160px)] max-w-[450px] md:max-w-[550px]">
-                {/* Background cutout wrapper */}
-                <div className="relative w-full h-full flex flex-col group/bets">
-
-                    {/* ANDAR BUTTON */}
-                    <button
-                        onClick={() => handleBet('andar')}
+                    {/* ANDAR */}
+                    <button onClick={() => handleBet("andar")}
                         disabled={!bettingOpen || betPlaced}
-                        className={`relative flex-1 rounded-tl-xl rounded-tr-xl overflow-hidden transition-all duration-150 group
-                                ${!bettingOpen || betPlaced ? "opacity-50 cursor-not-allowed" : "hover:brightness-110 active:scale-[0.98]"}
-                                ${localResult?.toLowerCase() === 'andar' ? "zone-win-glow" : ""}`}
                         style={{
-                            background: "radial-gradient(circle at top center, #3c6e7a 0%, #294c55 100%)",
-                            border: "2.5px solid #629ca7",
-                            borderBottom: "1.5px solid #629ca7",
-                            padding: "8px 16px",
-                            boxShadow: "inset 0 0 40px rgba(0,0,0,0.3)"
+                            flex: 1,
+                            borderRadius: "10px 10px 0 0",
+                            border: "2px solid #629ca7",
+                            borderBottom: "1px solid #629ca7",
+                            background: "linear-gradient(135deg, #3c7280 0%, #2b5460 100%)",
+                            padding: "8px 14px",
+                            cursor: bettingOpen && !betPlaced ? "pointer" : "not-allowed",
+                            opacity: !bettingOpen || betPlaced ? 0.55 : 1,
+                            position: "relative", overflow: "hidden",
+                            boxShadow: localResult?.toLowerCase() === "andar" ? "0 0 20px rgba(98,156,167,0.8)" : "inset 0 0 30px rgba(0,0,0,0.3)",
+                            transition: "all 0.15s ease",
                         }}>
-                        {/* Faint mandala pattern overlay */}
-                        <div className="absolute inset-0 opacity-[0.03] pointer-events-none" style={{ backgroundImage: "repeating-radial-gradient(circle at 100% 50%, white 0, white 1px, transparent 1px, transparent 15px)" }} />
-
-                        <div className="relative z-10 flex flex-col items-start justify-center h-full">
-                            <span className="text-white font-black text-xl sm:text-2xl tracking-wide uppercase drop-shadow-md">ANDAR</span>
-                            <span className="text-[#a4d4dc] text-[10px] sm:text-xs font-bold tracking-widest leading-none mt-0.5">0.9:1</span>
+                        <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-start", justifyContent: "center", height: "100%", position: "relative", zIndex: 1 }}>
+                            <span style={{ color: "#fff", fontWeight: 900, fontSize: 22, letterSpacing: "0.05em", textShadow: "0 2px 4px rgba(0,0,0,0.5)" }}>ANDAR</span>
+                            <span style={{ color: "#a4d4dc", fontWeight: 700, fontSize: 11, letterSpacing: "0.15em", marginTop: 1 }}>0.9:1</span>
                         </div>
-
-                        {/* Stacked Chips Visual */}
+                        {/* Chip stack */}
                         {andarBets.length > 0 && (
-                            <div className="absolute left-[110px] sm:left-[140px] top-1/2 -translate-y-1/2 flex items-center pointer-events-none">
-                                <div className="relative" style={{ height: 26, width: 26 }}>
+                            <div style={{ position: "absolute", left: 120, top: "50%", transform: "translateY(-50%)", display: "flex", alignItems: "center" }}>
+                                <div style={{ position: "relative", height: 28, width: 28 }}>
                                     {andarBets.slice(-5).map((b, i) => (
-                                        <div key={i} className="absolute rounded-full border border-white flex items-center justify-center shadow-lg"
-                                            style={{ width: 26, height: 26, background: CHIPS.find(c => c.value === b.amount)?.color || "#555", left: i * 8, top: -i * 2, zIndex: i }}>
-                                            <div className="w-[18px] h-[18px] border-[0.5px] border-white/40 rounded-full flex items-center justify-center bg-black/10">
-                                                <span className="text-[7px] font-black">{b.amount >= 1000 ? (b.amount / 1000) + 'K' : b.amount}</span>
-                                            </div>
+                                        <div key={i} style={{
+                                            position: "absolute", width: 28, height: 28, borderRadius: "50%",
+                                            background: CHIPS.find(c => c.value === b.amount)?.color || "#555",
+                                            border: "1px solid rgba(255,255,255,0.6)",
+                                            left: i * 9, top: -i * 2, zIndex: i,
+                                            display: "flex", alignItems: "center", justifyContent: "center",
+                                        }}>
+                                            <span style={{ fontSize: 7, fontWeight: 900, color: "#fff" }}>{b.amount >= 1000 ? (b.amount / 1000) + "K" : b.amount}</span>
                                         </div>
                                     ))}
                                 </div>
                             </div>
                         )}
-                        {/* Total Amount Badge */}
                         {andarTotal > 0 && (
-                            <div className="absolute right-[90px] top-1/2 -translate-y-1/2 text-white/90 text-[10px] sm:text-xs font-bold bg-black/40 border border-white/10 px-2 py-1 rounded shadow-inner">
-                                ₹{andarTotal.toLocaleString()}
+                            <div style={{
+                                position: "absolute", right: 100, top: "50%", transform: "translateY(-50%)",
+                                background: "rgba(0,0,0,0.45)", border: "1px solid rgba(255,255,255,0.12)",
+                                color: "#fff", fontSize: 10, fontWeight: 700, borderRadius: 4, padding: "3px 7px"
+                            }}>₹{andarTotal.toLocaleString()}</div>
+                        )}
+                        {localResult?.toLowerCase() === "andar" && (
+                            <div style={{ position: "absolute", inset: 0, background: "rgba(255,255,255,0.12)", display: "flex", alignItems: "center", justifyContent: "flex-end", paddingRight: 90 }}>
+                                <span style={{ fontSize: 28 }}>🏆</span>
                             </div>
                         )}
-
-                        {localResult?.toLowerCase() === 'andar' && <div className="absolute inset-0 bg-white/10 z-20 flex items-center justify-end pr-[100px]"><span className="text-3xl animate-bounce">🏆</span></div>}
                     </button>
 
-                    {/* BAHAR BUTTON */}
-                    <button
-                        onClick={() => handleBet('bahar')}
+                    {/* BAHAR */}
+                    <button onClick={() => handleBet("bahar")}
                         disabled={!bettingOpen || betPlaced}
-                        className={`relative flex-1 rounded-bl-xl rounded-br-xl overflow-hidden transition-all duration-150 group
-                                ${!bettingOpen || betPlaced ? "opacity-50 cursor-not-allowed" : "hover:brightness-110 active:scale-[0.98]"}
-                                ${localResult?.toLowerCase() === 'bahar' ? "zone-win-glow" : ""}`}
                         style={{
-                            background: "radial-gradient(circle at bottom center, #8f4f38 0%, #753b23 100%)",
-                            border: "2.5px solid #bc6941",
-                            borderTop: "1.5px solid #bc6941",
-                            padding: "8px 16px",
-                            boxShadow: "inset 0 0 40px rgba(0,0,0,0.3)"
+                            flex: 1,
+                            borderRadius: "0 0 10px 10px",
+                            border: "2px solid #bc6941",
+                            borderTop: "1px solid #bc6941",
+                            background: "linear-gradient(135deg, #8f4f38 0%, #703726 100%)",
+                            padding: "8px 14px",
+                            cursor: bettingOpen && !betPlaced ? "pointer" : "not-allowed",
+                            opacity: !bettingOpen || betPlaced ? 0.55 : 1,
+                            position: "relative", overflow: "hidden",
+                            boxShadow: localResult?.toLowerCase() === "bahar" ? "0 0 20px rgba(188,105,65,0.8)" : "inset 0 0 30px rgba(0,0,0,0.3)",
+                            transition: "all 0.15s ease",
                         }}>
-                        <div className="absolute inset-0 opacity-[0.03] pointer-events-none" style={{ backgroundImage: "repeating-radial-gradient(circle at 100% 50%, white 0, white 1px, transparent 1px, transparent 15px)" }} />
-
-                        <div className="relative z-10 flex flex-col items-start justify-center h-full">
-                            <span className="text-white font-black text-xl sm:text-2xl tracking-wide uppercase drop-shadow-md">BAHAR</span>
-                            <span className="text-[#dfa589] text-[10px] sm:text-xs font-bold tracking-widest leading-none mt-0.5">1:1</span>
+                        <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-start", justifyContent: "center", height: "100%", position: "relative", zIndex: 1 }}>
+                            <span style={{ color: "#fff", fontWeight: 900, fontSize: 22, letterSpacing: "0.05em", textShadow: "0 2px 4px rgba(0,0,0,0.5)" }}>BAHAR</span>
+                            <span style={{ color: "#dfa589", fontWeight: 700, fontSize: 11, letterSpacing: "0.15em", marginTop: 1 }}>1:1</span>
                         </div>
-
-                        {/* Stacked Chips Visual */}
                         {baharBets.length > 0 && (
-                            <div className="absolute left-[110px] sm:left-[140px] top-1/2 -translate-y-1/2 flex items-center pointer-events-none">
-                                <div className="relative" style={{ height: 26, width: 26 }}>
+                            <div style={{ position: "absolute", left: 120, top: "50%", transform: "translateY(-50%)", display: "flex", alignItems: "center" }}>
+                                <div style={{ position: "relative", height: 28, width: 28 }}>
                                     {baharBets.slice(-5).map((b, i) => (
-                                        <div key={i} className="absolute rounded-full border border-white flex items-center justify-center shadow-lg"
-                                            style={{ width: 26, height: 26, background: CHIPS.find(c => c.value === b.amount)?.color || "#555", left: i * 8, top: -i * 2, zIndex: i }}>
-                                            <div className="w-[18px] h-[18px] border-[0.5px] border-white/40 rounded-full flex items-center justify-center bg-black/10">
-                                                <span className="text-[7px] font-black">{b.amount >= 1000 ? (b.amount / 1000) + 'K' : b.amount}</span>
-                                            </div>
+                                        <div key={i} style={{
+                                            position: "absolute", width: 28, height: 28, borderRadius: "50%",
+                                            background: CHIPS.find(c => c.value === b.amount)?.color || "#555",
+                                            border: "1px solid rgba(255,255,255,0.6)",
+                                            left: i * 9, top: -i * 2, zIndex: i,
+                                            display: "flex", alignItems: "center", justifyContent: "center",
+                                        }}>
+                                            <span style={{ fontSize: 7, fontWeight: 900, color: "#fff" }}>{b.amount >= 1000 ? (b.amount / 1000) + "K" : b.amount}</span>
                                         </div>
                                     ))}
                                 </div>
                             </div>
                         )}
-                        {/* Total Amount Badge */}
                         {baharTotal > 0 && (
-                            <div className="absolute right-[90px] top-1/2 -translate-y-1/2 text-white/90 text-[10px] sm:text-xs font-bold bg-black/40 border border-white/10 px-2 py-1 rounded shadow-inner">
-                                ₹{baharTotal.toLocaleString()}
+                            <div style={{
+                                position: "absolute", right: 100, top: "50%", transform: "translateY(-50%)",
+                                background: "rgba(0,0,0,0.45)", border: "1px solid rgba(255,255,255,0.12)",
+                                color: "#fff", fontSize: 10, fontWeight: 700, borderRadius: 4, padding: "3px 7px"
+                            }}>₹{baharTotal.toLocaleString()}</div>
+                        )}
+                        {localResult?.toLowerCase() === "bahar" && (
+                            <div style={{ position: "absolute", inset: 0, background: "rgba(255,255,255,0.12)", display: "flex", alignItems: "center", justifyContent: "flex-end", paddingRight: 90 }}>
+                                <span style={{ fontSize: 28 }}>🏆</span>
                             </div>
                         )}
-
-                        {localResult?.toLowerCase() === 'bahar' && <div className="absolute inset-0 bg-white/10 z-20 flex items-center justify-end pr-[100px]"><span className="text-3xl animate-bounce">🏆</span></div>}
                     </button>
 
-                    {/* THE CUTOUT OVERLAY FOR THE TARGET CARD */}
-                    <div className="absolute right-[-2.5px] top-1/2 -translate-y-1/2 w-[90px] sm:w-[100px] h-[100px] sm:h-[110px] rounded-l-full flex items-center justify-center pointer-events-none z-30 shadow-[-10px_0_20px_rgba(0,0,0,0.3)]"
-                        style={{ background: "#111823" }}>
-                        {/* Border matching the buttons to complete the illusion */}
-                        <div className="absolute top-0 left-0 w-full h-1/2 border-l-[2.5px] border-t-[2.5px] rounded-tl-full" style={{ borderColor: "#629ca7" }} />
-                        <div className="absolute bottom-0 left-0 w-full h-1/2 border-l-[2.5px] border-b-[2.5px] rounded-bl-full" style={{ borderColor: "#bc6941" }} />
+                    {/* Card Cutout (right side of ANDAR/BAHAR) */}
+                    <div style={{
+                        position: "absolute", right: -2, top: "50%", transform: "translateY(-50%)",
+                        width: 88, height: 104,
+                        background: "#111823",
+                        borderRadius: "50% 0 0 50%",
+                        display: "flex", alignItems: "center", justifyContent: "center",
+                        zIndex: 10,
+                        boxShadow: "-8px 0 18px rgba(0,0,0,0.4)",
+                    }}>
+                        {/* Border arcs */}
+                        <div style={{ position: "absolute", top: 0, left: 0, width: "100%", height: "50%", borderLeft: "2px solid #629ca7", borderTop: "2px solid #629ca7", borderRadius: "50% 0 0 0" }} />
+                        <div style={{ position: "absolute", bottom: 0, left: 0, width: "100%", height: "50%", borderLeft: "2px solid #bc6941", borderBottom: "2px solid #bc6941", borderRadius: "0 0 0 50%" }} />
 
-                        {/* The Joker Card inside the cutout */}
-                        <div className="relative ml-2 sm:ml-4 flex items-center justify-center pointer-events-auto">
+                        {/* Card */}
+                        <div style={{ marginLeft: 8, display: "flex", alignItems: "center", justifyContent: "center", position: "relative", zIndex: 2 }}>
                             {jokerCard ? (
-                                <div className="bg-white rounded border-[1.5px] border-amber-400 overflow-hidden shadow-[0_0_15px_rgba(245,158,11,0.4)]" style={{ width: 44, height: 62 }}>
+                                <div style={{
+                                    background: "#fff", borderRadius: 4,
+                                    border: "1.5px solid #d4a017",
+                                    boxShadow: "0 0 12px rgba(212,160,23,0.45)",
+                                    width: 44, height: 62, overflow: "hidden",
+                                }}>
                                     {jokerCard.faceImg ? (
-                                        <img src={jokerCard.faceImg} alt={jokerCard.display} className="w-full h-full object-cover" />
+                                        <img src={jokerCard.faceImg} alt={jokerCard.display} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
                                     ) : (
-                                        <div className="w-full h-full flex flex-col items-center justify-center p-1">
-                                            <span className="text-[14px] font-black leading-none mb-0.5" style={{ color: jokerCard.color }}>{jokerCard.val}</span>
-                                            <span className="text-[22px] leading-none" style={{ color: jokerCard.color }}>{jokerCard.suitSym}</span>
+                                        <div style={{ width: "100%", height: "100%", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center" }}>
+                                            <span style={{ fontSize: 14, fontWeight: 900, color: jokerCard.color, lineHeight: 1 }}>{jokerCard.val}</span>
+                                            <span style={{ fontSize: 20, color: jokerCard.color, lineHeight: 1 }}>{jokerCard.suitSym}</span>
                                         </div>
                                     )}
                                 </div>
                             ) : (
-                                <div className="w-[44px] h-[62px] border border-white/20 rounded flex items-center justify-center bg-white/5">
-                                    <span className="text-[8px] text-white/40 uppercase font-black text-center leading-tight">No<br />Card</span>
+                                <div style={{ width: 44, height: 62, border: "1px solid rgba(255,255,255,0.2)", borderRadius: 4, background: "rgba(255,255,255,0.05)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                                    <span style={{ fontSize: 8, color: "rgba(255,255,255,0.4)", fontWeight: 900, textAlign: "center", lineHeight: 1.3 }}>No<br />Card</span>
                                 </div>
                             )}
                         </div>
@@ -485,38 +613,121 @@ const BettingRoom = () => {
                 </div>
             </div>
 
-            {/* BETTING CLOSED OVERLAY */}
+            {/* ── RIGHT PANEL: Progress bar + Bet limit ── */}
+            <div style={{
+                position: "absolute", right: 0, top: 0, bottom: 40, zIndex: 20,
+                display: "flex", flexDirection: "column", alignItems: "flex-end", justifyContent: "flex-end",
+                padding: "0 10px 18px 10px",
+                background: "linear-gradient(to left, rgba(0,0,0,0.6), transparent)",
+                width: 115,
+                gap: 10,
+            }}>
+                {/* Progress bar (red horizontal bar) */}
+                <div style={{
+                    width: 400, height: 13, borderRadius: 4,
+                    background: "rgba(255,255,255,0.1)",
+                    overflow: "hidden",
+                }}>
+                    <div style={{
+                        height: "100%",
+                        width: `${Math.min((totalBet / 1000000) * 100, 100)}%`,
+                        background: "linear-gradient(to right, #c0392b, #e74c3c)",
+                        borderRadius: 4,
+                        minWidth: totalBet > 0 ? 6 : 0,
+                        transition: "width 0.3s ease",
+                    }} />
+                </div>
+
+                {/* Bet limit text */}
+                <div style={{ color: "rgba(255,255,255,0.6)", fontSize: 20, fontWeight: 600, whiteSpace: "nowrap" }}>
+                    Bet: {totalBet.toLocaleString()}/1,000,000
+                </div>
+            </div>
+
+            {/* ── ROUND HISTORY: right-side horizontal A/B scoreboard ── */}
+            <div style={{
+                position: "absolute", right: 0, bottom: 120, zIndex: 20,
+                display: "flex", flexDirection: "row", alignItems: "center",
+                flexWrap: "nowrap", gap: 5,
+                padding: "6px 10px",
+                background: "linear-gradient(to left, rgba(0,0,0,0.5), transparent)",
+                pointerEvents: "none",
+                justifyContent: "flex-end",
+            }}>
+                {roundHistory.slice(-13).map((r, i, arr) => {
+                    const isAndar = r.result === "ANDAR";
+                    const isLatest = i === arr.length - 1;
+                    return (
+                        <div key={i} style={{
+                            width: 28, height: 28, borderRadius: "50%", flexShrink: 0,
+                            background: isAndar
+                                ? "radial-gradient(circle at 35% 35%, #555, #1a1a1a)"
+                                : "radial-gradient(circle at 35% 35%, #c0392b, #7b1c1c)",
+                            border: isLatest
+                                ? "2.5px solid #27ae60"
+                                : isAndar ? "1.5px solid #555" : "1.5px solid #a93226",
+                            boxShadow: isLatest
+                                ? "0 0 10px rgba(39,174,96,0.8)"
+                                : isAndar ? "0 1px 4px rgba(0,0,0,0.6)" : "0 1px 4px rgba(192,57,43,0.5)",
+                            display: "flex", alignItems: "center", justifyContent: "center",
+                        }}>
+                            <span style={{
+                                color: "#fff", fontWeight: 900, fontSize: 10,
+                                textShadow: "0 1px 3px rgba(0,0,0,0.9)", lineHeight: 1,
+                            }}>{isAndar ? "A" : "B"}</span>
+                        </div>
+                    );
+                })}
+                {/* Empty slots */}
+                {Array.from({ length: Math.max(0, 13 - roundHistory.slice(-13).length) }).map((_, i) => (
+                    <div key={`e-${i}`} style={{
+                        width: 28, height: 28, borderRadius: "50%", flexShrink: 0,
+                        background: "rgba(255,255,255,0.04)",
+                        border: "1.5px solid rgba(255,255,255,0.14)",
+                    }} />
+                ))}
+            </div>
+
+            {/* ── BETTING CLOSED OVERLAY ── */}
             {!bettingOpen && !localResult && (
-                <div className="absolute inset-0 z-30 flex items-center justify-center pointer-events-none">
-                    <div className="betting-closed-box text-center">
-                        <div className="text-3xl mb-2">🚫</div>
-                        <div className="text-white font-black text-base tracking-widest uppercase">Betting Closed</div>
-                        <div className="text-white/40 text-xs mt-1">Waiting for result...</div>
-                        <div className="flex gap-1 mt-3 justify-center">
-                            {[0, 1, 2].map(i => (
-                                <div key={i} className="w-1.5 h-1.5 rounded-full bg-red-500 animate-bounce" style={{ animationDelay: `${i * 0.15}s` }} />
-                            ))}
+                <div style={{ position: "absolute", inset: 0, zIndex: 30, display: "flex", alignItems: "center", justifyContent: "center", pointerEvents: "none" }}>
+                    <div style={{
+                        background: "rgba(0,0,0,0.75)", backdropFilter: "blur(6px)",
+                        border: "1px solid rgba(255,255,255,0.12)", borderRadius: 14,
+                        padding: "20px 32px", textAlign: "center",
+                    }}>
+                        <div style={{ fontSize: 30, marginBottom: 8 }}>🚫</div>
+                        <div style={{ color: "#fff", fontWeight: 900, fontSize: 15, letterSpacing: "0.15em", textTransform: "uppercase" }}>Betting Closed</div>
+                        <div style={{ color: "rgba(255,255,255,0.4)", fontSize: 11, marginTop: 4 }}>Waiting for result...</div>
+                        <div style={{ display: "flex", gap: 5, marginTop: 12, justifyContent: "center" }}>
+                            {[0, 1, 2].map(i => <div key={i} style={{ width: 6, height: 6, borderRadius: "50%", background: "#c0392b", animation: "bounce 0.8s infinite", animationDelay: `${i * 0.15}s` }} />)}
                         </div>
                     </div>
                 </div>
             )}
 
-            {/* RESULT POPUP */}
+            {/* ── RESULT POPUP ── */}
             {showResultPopup && localResult && (
-                <div className="absolute inset-0 z-40 flex items-center justify-center bg-black/60 cursor-pointer" onClick={() => setShowResultPopup(false)}>
-                    <div className={`result-popup ${(localResult === "ANDAR" && andarTotal > 0) || (localResult === "BAHAR" && baharTotal > 0)
-                        ? "result-win" : "result-loss"}`}>
-                        <div className="text-4xl mb-2">
+                <div style={{ position: "absolute", inset: 0, zIndex: 40, display: "flex", alignItems: "center", justifyContent: "center", background: "rgba(0,0,0,0.65)", cursor: "pointer" }}
+                    onClick={() => setShowResultPopup(false)}>
+                    <div style={{
+                        background: (localResult === "ANDAR" && andarTotal > 0) || (localResult === "BAHAR" && baharTotal > 0)
+                            ? "linear-gradient(135deg, #1a5c2a, #27ae60)"
+                            : "linear-gradient(135deg, #5c1a1a, #c0392b)",
+                        border: "1px solid rgba(255,255,255,0.2)", borderRadius: 16,
+                        padding: "28px 40px", textAlign: "center",
+                        boxShadow: "0 20px 60px rgba(0,0,0,0.6)",
+                    }}>
+                        <div style={{ fontSize: 44, marginBottom: 8 }}>
                             {(localResult === "ANDAR" && andarTotal > 0) || (localResult === "BAHAR" && baharTotal > 0) ? "🏆" : "😔"}
                         </div>
-                        <div className="text-white font-black text-xl uppercase tracking-wider mb-1">
+                        <div style={{ color: "#fff", fontWeight: 900, fontSize: 22, letterSpacing: "0.1em", textTransform: "uppercase", marginBottom: 4 }}>
                             {betPlaced
-                                ? ((localResult === "ANDAR" && andarTotal > 0) || (localResult === "BAHAR" && baharTotal > 0)
-                                    ? "You Win!" : "Better Luck!")
+                                ? ((localResult === "ANDAR" && andarTotal > 0) || (localResult === "BAHAR" && baharTotal > 0) ? "You Win!" : "Better Luck!")
                                 : `${localResult} Wins!`}
                         </div>
-                        <div className="text-white/50 text-sm">{localResult.toLowerCase()} wins this round</div>
-                        <div className="text-white/30 text-xs mt-3">Tap to dismiss</div>
+                        <div style={{ color: "rgba(255,255,255,0.55)", fontSize: 13 }}>{localResult.toLowerCase()} wins this round</div>
+                        <div style={{ color: "rgba(255,255,255,0.3)", fontSize: 11, marginTop: 14 }}>Tap to dismiss</div>
                     </div>
                 </div>
             )}
