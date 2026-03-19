@@ -42,7 +42,7 @@ type UserProfile = {
 };
 
 type StatusFilter = "ALL" | "PENDING" | "APPROVED" | "BLOCKED";
-const ROOM_STATUS_CYCLE: Room["status"][] = ["ONLINE", "LIVE", "OFFLINE", "MAINTENANCE"];
+const ROOM_STATUS_CYCLE: Room["status"][] = ["ONLINE", "OFFLINE", "MAINTENANCE"];
 
 // ─── Card Data ───────────────────────────────────────────────────
 const SUITS = [
@@ -592,7 +592,7 @@ const AdminDashboard = () => {
             <div className="w-1.5 h-6 rounded-full bg-emerald-400" />
             <h2 className="text-xl font-black text-white tracking-widest uppercase">Room Management</h2>
             <span className="text-xs text-white/20 bg-white/5 rounded-full px-4 py-1 ml-2">
-              {rooms.filter(r => r.status === "ONLINE" || r.status === "LIVE").length} active terminals
+              {rooms.filter(r => r.status === "ONLINE").length} active terminals
             </span>
           </div>
 
@@ -635,11 +635,11 @@ const AdminDashboard = () => {
                         <div className="flex gap-2 justify-end flex-wrap">
                           {ROOM_STATUS_CYCLE.filter(s => s !== room.status).map(s => (
                             <button key={s} disabled={roomActionLoading === room.id} onClick={() => handleRoomStatus(room, s)}
-                              className={`text-[9px] font-black uppercase tracking-widest px-3 py-1.5 rounded-xl border transition-all disabled:opacity-40
-                                ${s === "LIVE" ? "bg-amber-500/10 border-amber-500/30 text-amber-500 hover:bg-amber-500/20" :
-                                  s === "ONLINE" ? "bg-emerald-500/10 border-emerald-500/30 text-emerald-500 hover:bg-emerald-500/20" :
-                                    "bg-white/5 border-white/10 text-white/40 hover:bg-white/10"}`}>
-                              → {s}
+                               className={`text-[9px] font-black uppercase tracking-widest px-3 py-1.5 rounded-xl border transition-all disabled:opacity-40
+                                 ${s === "ONLINE" ? "bg-emerald-500/10 border-emerald-500/30 text-emerald-500 hover:bg-emerald-500/20" :
+                                   s === "MAINTENANCE" ? "bg-amber-500/10 border-amber-500/30 text-amber-500 hover:bg-amber-500/20" :
+                                     "bg-white/5 border-white/10 text-white/40 hover:bg-white/10"}`}>
+                               → {s}
                             </button>
                           ))}
                         </div>
