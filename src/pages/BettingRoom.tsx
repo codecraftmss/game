@@ -77,7 +77,7 @@ const BettingRoom = () => {
                 setRoomLoading(false);
                 return;
             }
-            if (!data || (data.status !== "ONLINE" && data.status !== "LIVE")) {
+            if (!data || data.status !== "ONLINE") {
                 navigate("/dashboard");
             } else {
                 setRoomInfo({ name: data.name, minBet: Number(data.min_bet), streamUrl: data.stream_url ?? undefined });

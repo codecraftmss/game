@@ -2,7 +2,7 @@ import { useEffect, useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { logout } from "@/lib/auth";
-import { LogOut, Wallet, UserCircle, Headphones, Lock, Users, AlertTriangle, TrendingUp, ArrowDownLeft, Plus, History as HistoryIcon } from "lucide-react";
+import { LogOut, Wallet, UserCircle, Headphones, Lock, Users, AlertTriangle, TrendingUp, ArrowDownLeft, Plus, History as HistoryIcon, X } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
 type Room = {
@@ -23,6 +23,9 @@ const Dashboard = () => {
   const [balance, setBalance] = useState(0);
   const [rooms, setRooms] = useState<Room[]>([]);
   const [roomsLoading, setRoomsLoading] = useState(true);
+  const [showTopUp, setShowTopUp] = useState(false);
+  const [showWithdraw, setShowWithdraw] = useState(false);
+  const [showContact, setShowContact] = useState(false);
   const navigate = useNavigate();
   const { toast } = useToast();
 
@@ -50,12 +53,12 @@ const Dashboard = () => {
     checkAuth();
   }, [navigate]);
 
-  // ── Fetch visible rooms (ONLINE + LIVE only) ──
+  // ── Fetch visible rooms (ONLINE + MAINTENANCE only) ──
   const fetchRooms = useCallback(async () => {
     const { data, error } = await supabase
       .from("rooms")
       .select("*")
-      .in("status", ["ONLINE", "LIVE"])
+      .in("status", ["ONLINE", "MAINTENANCE"])
       .order("created_at", { ascending: true });
 
     if (error) {
@@ -78,7 +81,7 @@ const Dashboard = () => {
         (payload) => {
           if (payload.eventType === "UPDATE") {
             const updated = payload.new as Room;
-            if (updated.status === "ONLINE" || updated.status === "LIVE") {
+            if (updated.status === "ONLINE" || updated.status === "MAINTENANCE") {
               // Add or update
               setRooms((prev) => {
                 const exists = prev.find((r) => r.id === updated.id);
@@ -87,12 +90,12 @@ const Dashboard = () => {
                   : [...prev, updated];
               });
             } else {
-              // Remove from view if OFFLINE/MAINTENANCE
+              // Remove from view if OFFLINE
               setRooms((prev) => prev.filter((r) => r.id !== updated.id));
             }
           } else if (payload.eventType === "INSERT") {
             const inserted = payload.new as Room;
-            if (inserted.status === "ONLINE" || inserted.status === "LIVE") {
+            if (inserted.status === "ONLINE" || inserted.status === "MAINTENANCE") {
               setRooms((prev) => [...prev, inserted]);
             }
           } else if (payload.eventType === "DELETE") {
@@ -130,21 +133,26 @@ const Dashboard = () => {
       .eq("id", room.id)
       .maybeSingle();
 
-    if (!data || (data.status !== "ONLINE" && data.status !== "LIVE")) {
+    if (!data || data.status !== "ONLINE") {
       toast({
         title: "Room Unavailable",
-        description: "This room is currently offline. Please try another table.",
+        description: data?.status === "MAINTENANCE" ? "This room is currently under maintenance. Please check back later." : "This room is currently offline. Please try another table.",
         variant: "destructive",
       });
-      // Remove from local state immediately
-      setRooms((prev) => prev.filter((r) => r.id !== room.id));
+      if (!data || data.status !== "MAINTENANCE") {
+        // Remove from local state immediately
+        setRooms((prev) => prev.filter((r) => r.id !== room.id));
+      } else {
+        // Keep it in state but mark as maintenance
+        setRooms((prev) => prev.map((r) => r.id === room.id ? { ...r, status: "MAINTENANCE" } : r));
+      }
       return;
     }
     navigate(`/room/${room.id}`);
   };
 
-  const liveCount = rooms.filter((r) => r.status === "LIVE").length;
   const onlineCount = rooms.filter((r) => r.status === "ONLINE").length;
+  const maintenanceCount = rooms.filter((r) => r.status === "MAINTENANCE").length;
 
   return (
     <div className="min-h-screen lobby-bg text-white">
@@ -205,10 +213,14 @@ const Dashboard = () => {
               className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-bold uppercase tracking-wider bg-amber-500/10 border border-amber-500/30 text-amber-400 hover:bg-amber-500/20 transition-all">
               <HistoryIcon className="w-3.5 h-3.5" /> History
             </button>
-            <button className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-bold uppercase tracking-wider bg-white/5 border border-white/10 text-white/40 hover:text-white/60 hover:bg-white/10 transition-all">
+            <button 
+              onClick={() => setShowTopUp(true)}
+              className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-bold uppercase tracking-wider bg-white/5 border border-white/10 text-white/40 hover:text-white/60 hover:bg-white/10 transition-all">
               <Plus className="w-3.5 h-3.5" />Top Up
             </button>
-            <button className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-bold uppercase tracking-wider bg-white/5 border border-white/10 text-white/40 hover:text-white/60 hover:bg-white/10 transition-all">
+            <button 
+              onClick={() => setShowWithdraw(true)}
+              className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-bold uppercase tracking-wider bg-white/5 border border-white/10 text-white/40 hover:text-white/60 hover:bg-white/10 transition-all">
               <ArrowDownLeft className="w-3.5 h-3.5" />Withdraw
             </button>
           </div>
@@ -220,10 +232,10 @@ const Dashboard = () => {
             Lobby <span className="text-white/30">/</span> <span className="text-white/80">Games</span>
           </h1>
           <div className="flex items-center gap-3">
-            {liveCount > 0 && (
+            {maintenanceCount > 0 && (
               <span className="flex items-center gap-1.5 text-xs font-medium text-amber-400">
                 <span className="w-2 h-2 rounded-full bg-amber-400 animate-pulse" />
-                Live: {liveCount}
+                Maint: {maintenanceCount}
               </span>
             )}
             <span className="flex items-center gap-1.5 text-xs font-medium text-emerald-400">
@@ -269,9 +281,9 @@ const Dashboard = () => {
 
                   {/* Status badge */}
                   <div className="absolute top-3 right-3">
-                    {room.status === "LIVE" ? (
+                    {room.status === "MAINTENANCE" ? (
                       <span className="flex items-center gap-1 bg-amber-500/20 border border-amber-500/40 text-amber-400 text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider">
-                        <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" />Live
+                        <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" />Maint
                       </span>
                     ) : (
                       <span className="flex items-center gap-1 bg-emerald-500/20 border border-emerald-500/40 text-emerald-400 text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider">
@@ -306,10 +318,10 @@ const Dashboard = () => {
                   </div>
 
                   <button
-                    className="w-full lobby-enter-btn py-2.5 rounded-lg text-xs font-bold uppercase tracking-widest"
+                    className={`w-full py-2.5 rounded-lg text-xs font-bold uppercase tracking-widest ${room.status === "MAINTENANCE" ? "bg-amber-500/10 border border-amber-500/30 text-amber-500/50 cursor-not-allowed" : "lobby-enter-btn"}`}
                     onClick={() => handleEnterRoom(room)}
                   >
-                    Enter Table
+                    {room.status === "MAINTENANCE" ? "Maintenance" : "Enter Table"}
                   </button>
                 </div>
               </div>
@@ -344,18 +356,35 @@ const Dashboard = () => {
             </div>
             <div>
               <h3 className="text-xl font-bold text-white mb-1">Player Profile</h3>
-              <p className="text-sm text-white/40">Settings, History &amp; Preferences</p>
+              <p className="text-sm text-white/40">Account Details &amp; History</p>
             </div>
-            <div className="text-white/60 font-semibold">{userName || "—"}</div>
-            <button className="text-xs font-bold tracking-widest text-white/30 uppercase hover:text-white/60 transition-colors">
-              View Details
-            </button>
+            
+            <div className="w-full max-w-sm mt-2 space-y-4">
+              <div className="flex justify-between items-center bg-white/5 rounded-lg p-3 border border-white/10">
+                <span className="text-white/40 text-sm">Name</span>
+                <span className="text-white font-semibold">{userName || "—"}</span>
+              </div>
+              
+              <div className="flex justify-between items-center bg-white/5 rounded-lg p-3 border border-white/10">
+                <span className="text-white/40 text-sm">Phone Number</span>
+                <span className="text-white font-semibold">{userPhone || "—"}</span>
+              </div>
+              
+              <button
+                onClick={() => navigate("/dashboard/transactions")}
+                className="w-full flex items-center justify-center gap-2 bg-amber-500/10 hover:bg-amber-500/20 text-amber-400 border border-amber-500/30 rounded-lg p-3 transition-colors font-semibold tracking-wider uppercase text-sm"
+              >
+                <HistoryIcon className="w-4 h-4" /> View History
+              </button>
+            </div>
           </div>
         </div>
 
         {/* Contact Support */}
         <div className="flex justify-center mb-10">
-          <button className="lobby-support-btn flex items-center gap-2 px-8 py-3 rounded-full text-sm font-bold uppercase tracking-widest">
+          <button 
+            onClick={() => setShowContact(true)}
+            className="lobby-support-btn flex items-center gap-2 px-8 py-3 rounded-full text-sm font-bold uppercase tracking-widest">
             <Headphones className="w-4 h-4" />Contact Support
           </button>
         </div>
@@ -372,6 +401,91 @@ const Dashboard = () => {
           </p>
         </div>
       </main>
+
+      {/* Top Up Modal */}
+      {showTopUp && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
+          <div className="bg-[#1a1c23] border border-white/10 rounded-2xl p-6 w-full max-w-sm relative">
+            <button onClick={() => setShowTopUp(false)} className="absolute top-4 right-4 text-white/40 hover:text-white">
+              <X className="w-5 h-5" />
+            </button>
+            <h2 className="text-xl font-bold text-amber-400 mb-4 tracking-wider uppercase text-center">Top Up Account</h2>
+            <div className="flex flex-col items-center gap-4">
+              <div className="w-48 h-48 bg-white p-2 rounded-xl flex items-center justify-center">
+                <img src="https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=upi://pay?pa=mock@upi&pn=RoyalStar" alt="Top Up QR" className="w-full h-full object-cover" />
+              </div>
+              <div className="text-white/60 text-sm text-center">Scan the QR code to add credits or send payment to:</div>
+              <div className="text-amber-400 font-black text-xl tracking-wider bg-amber-400/10 px-4 py-2 rounded-lg border border-amber-400/20">
+                +91 98765 43210
+              </div>
+              <button 
+                onClick={() => setShowTopUp(false)}
+                className="w-full mt-4 bg-amber-500 hover:bg-amber-600 text-black font-bold py-3 rounded-xl uppercase tracking-widest transition-colors"
+              >
+                Done
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Withdraw Modal */}
+      {showWithdraw && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
+          <div className="bg-[#1a1c23] border border-white/10 rounded-2xl p-6 w-full max-w-sm relative">
+            <button onClick={() => setShowWithdraw(false)} className="absolute top-4 right-4 text-white/40 hover:text-white">
+              <X className="w-5 h-5" />
+            </button>
+            <h2 className="text-xl font-bold text-amber-400 mb-4 tracking-wider uppercase text-center">Withdraw Funds</h2>
+            <div className="flex flex-col items-center gap-4 text-center">
+              <div className="w-16 h-16 rounded-full bg-red-500/10 flex items-center justify-center mb-2">
+                <ArrowDownLeft className="w-8 h-8 text-red-400" />
+              </div>
+              <div className="text-white/80">To withdraw your secure funds, please contact our withdrawal agent directly on WhatsApp or Call:</div>
+              <div className="text-white font-black text-2xl tracking-widest bg-white/5 border border-white/10 px-6 py-3 rounded-xl mt-2">
+                +91 87654 32109
+              </div>
+              <div className="text-xs text-red-400/80 uppercase tracking-widest mt-2">Available 24/7 for instant withdrawal</div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Contact Support Modal */}
+      {showContact && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
+          <div className="bg-[#1a1c23] border border-white/10 rounded-2xl p-6 w-full max-w-sm relative flex flex-col items-center gap-6">
+            <button onClick={() => setShowContact(false)} className="absolute top-4 right-4 text-white/40 hover:text-white">
+              <X className="w-5 h-5" />
+            </button>
+            <div className="w-16 h-16 rounded-full bg-blue-500/10 flex items-center justify-center">
+              <Headphones className="w-8 h-8 text-blue-400" />
+            </div>
+            <div className="text-center space-y-2">
+              <h2 className="text-xl font-bold text-white tracking-widest uppercase">Support Team</h2>
+              <p className="text-white/40 text-sm">We are here to help! Reach out for account assistance, bugs, or general queries.</p>
+            </div>
+            
+            <div className="w-full space-y-3">
+              <div className="bg-white/5 border border-white/10 p-4 rounded-xl flex justify-between items-center text-sm">
+                <span className="text-white/40">Email:</span>
+                <span className="text-white font-semibold flex items-center gap-2">support@royalstar.net</span>
+              </div>
+              <div className="bg-white/5 border border-white/10 p-4 rounded-xl flex justify-between items-center text-sm">
+                <span className="text-white/40">Phone:</span>
+                <span className="text-emerald-400 font-bold tracking-widest">+91 99999 00000</span>
+              </div>
+            </div>
+            
+            <button 
+              onClick={() => setShowContact(false)}
+              className="w-full bg-white/10 hover:bg-white/20 text-white font-bold py-3 rounded-xl tracking-widest uppercase transition-colors"
+            >
+              Close
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
