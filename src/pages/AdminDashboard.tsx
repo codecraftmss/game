@@ -46,12 +46,20 @@ const ROOM_STATUS_CYCLE: Room["status"][] = ["ONLINE", "LIVE", "OFFLINE", "MAINT
 
 // ─── Card Data ───────────────────────────────────────────────────
 const SUITS = [
-  { name: "Hearts", sym: "♥", color: "#e74c3c" },
-  { name: "Diamonds", sym: "♦", color: "#e74c3c" },
-  { name: "Clubs", sym: "♣", color: "#1a1a2e" },
-  { name: "Spades", sym: "♠", color: "#1a1a2e" },
+  { name: "Hearts", sym: "♥", color: "#e74c3c", key: "hearts" },
+  { name: "Diamonds", sym: "♦", color: "#e74c3c", key: "diamonds" },
+  { name: "Clubs", sym: "♣", color: "#1a1a2e", key: "clubs" },
+  { name: "Spades", sym: "♠", color: "#1a1a2e", key: "spades" },
 ];
 const VALUES = ["A", "2", "3", "4", "5", "6", "7", "8", "9", "10", "J", "Q", "K"];
+
+// ─── Face Card Image Helper ───────────────────────────────────────
+const FACE_VALUES: Record<string, string> = { A: "ace", J: "jack", Q: "queen", K: "king" };
+const getFaceCardImage = (val: string, suitKey: string): string | null => {
+  const facePrefix = FACE_VALUES[val];
+  if (!facePrefix) return null;
+  return `/${facePrefix}_${suitKey}.png`;
+};
 
 // ─── Main Component ──────────────────────────────────────────────
 const AdminDashboard = () => {
@@ -471,8 +479,7 @@ const AdminDashboard = () => {
                   {(["ANDAR", "BAHAR"] as const).map(outcome => (
                     <button key={outcome}
                       onClick={() => setConfirmModal({ open: true, outcome })}
-                      disabled={gameState?.betting_status !== "CLOSED"}
-                      className="py-3 rounded-xl font-black text-xs uppercase tracking-[0.1em] transition-all disabled:opacity-10 relative overflow-hidden group border active:scale-95"
+                      className="py-3 rounded-xl font-black text-xs uppercase tracking-[0.1em] transition-all relative overflow-hidden group border active:scale-95"
                       style={{
                         background: outcome === "ANDAR" ? "linear-gradient(135deg, #c0392b, #7b241c)" : "linear-gradient(135deg, #1a3a4a, #0d2233)",
                         borderColor: "rgba(255,255,255,0.1)",
@@ -502,6 +509,10 @@ const AdminDashboard = () => {
                       {(() => {
                         const suit = SUITS.find(s => selectedCard.includes(s.sym));
                         const val = selectedCard.replace(suit?.sym || "", "");
+                        const faceImg = suit ? getFaceCardImage(val, suit.key) : null;
+                        if (faceImg) {
+                          return <img src={faceImg} alt={selectedCard} className="w-full h-full object-cover" />;
+                        }
                         return <>
                           <div className="absolute top-2 left-2 font-black text-xl leading-none" style={{ color: suit?.color }}>{val}</div>
                           <div className="text-5xl drop-shadow-md select-none" style={{ color: suit?.color }}>{suit?.sym}</div>
@@ -548,19 +559,22 @@ const AdminDashboard = () => {
                       {VALUES.map(val => {
                         const card = `${val}${suit.sym}`;
                         const isSelected = selectedCard === card;
+                        const faceImg = getFaceCardImage(val, suit.key);
                         return (
                           <button key={card} onClick={() => handleCardSelect(card)}
-                            className="relative aspect-[3/4] flex items-center justify-center rounded-lg text-xs font-black transition-all duration-300 border hover:border-white/30"
+                            className="relative aspect-[3/4] flex items-center justify-center rounded-lg text-xs font-black transition-all duration-300 border hover:border-white/30 overflow-hidden"
                             style={{
-                              background: isSelected ? "white" : "rgba(255,255,255,0.02)",
+                              background: faceImg ? "white" : (isSelected ? "white" : "rgba(255,255,255,0.02)"),
                               borderColor: isSelected ? "#fbbf24" : "rgba(255,255,255,0.08)",
                               color: isSelected ? suit.color : (suit.color === "#e74c3c" ? "#f87171" : "rgba(255,255,255,0.3)"),
                               boxShadow: isSelected ? "0 0 20px rgba(251,191,36,0.6), 0 3px 10px rgba(0,0,0,0.5)" : "none",
                               transform: isSelected ? "scale(1.15) translateY(-1px)" : "none",
                               zIndex: isSelected ? 30 : 1,
                             }}>
-                            {val}
-                            {isSelected && <div className="absolute inset-0 bg-white/10 rounded-lg animate-pulse" />}
+                            {faceImg ? (
+                              <img src={faceImg} alt={card} className="w-full h-full object-cover rounded-lg" />
+                            ) : val}
+                            {isSelected && <div className="absolute inset-0 bg-amber-400/20 rounded-lg animate-pulse" />}
                           </button>
                         );
                       })}

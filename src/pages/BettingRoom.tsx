@@ -235,10 +235,17 @@ const BettingRoom = () => {
     };
 
     // Parse joker card
+    const SUIT_KEY_MAP: Record<string, string> = { "♥": "hearts", "♦": "diamonds", "♣": "clubs", "♠": "spades" };
+    const FACE_IMG_MAP: Record<string, string> = { A: "ace", J: "jack", Q: "queen", K: "king" };
     const jokerCard = gameState?.target_card ? (() => {
         const sym = gameState.target_card as string;
-        const isRed = sym.includes("♥") || sym.includes("♦");
-        return { display: sym, color: isRed ? "#e74c3c" : "#1a1a2e" };
+        const suitSym = sym.match(/[♥♦♣♠]/)?.[0] || "";
+        const val = sym.replace(suitSym, "");
+        const isRed = suitSym === "♥" || suitSym === "♦";
+        const suitKey = SUIT_KEY_MAP[suitSym] || "";
+        const facePrefix = FACE_IMG_MAP[val];
+        const faceImg = facePrefix && suitKey ? `/${facePrefix}_${suitKey}.png` : null;
+        return { display: sym, val, suitSym, color: isRed ? "#e74c3c" : "#1a1a2e", faceImg };
     })() : null;
 
     if (roomLoading) {
@@ -458,9 +465,15 @@ const BettingRoom = () => {
                         {/* The Joker Card inside the cutout */}
                         <div className="relative ml-2 sm:ml-4 flex items-center justify-center pointer-events-auto">
                             {jokerCard ? (
-                                <div className="bg-white rounded border-[1.5px] border-amber-400 p-1 flex flex-col items-center justify-center shadow-[0_0_15px_rgba(245,158,11,0.4)]" style={{ width: 44, height: 62 }}>
-                                    <span className="text-[14px] font-black leading-none mb-0.5" style={{ color: jokerCard.color }}>{jokerCard.display.replace(/[♥♦♣♠]/, '')}</span>
-                                    <span className="text-[22px] leading-none" style={{ color: jokerCard.color }}>{jokerCard.display.match(/[♥♦♣♠]/)?.[0]}</span>
+                                <div className="bg-white rounded border-[1.5px] border-amber-400 overflow-hidden shadow-[0_0_15px_rgba(245,158,11,0.4)]" style={{ width: 44, height: 62 }}>
+                                    {jokerCard.faceImg ? (
+                                        <img src={jokerCard.faceImg} alt={jokerCard.display} className="w-full h-full object-cover" />
+                                    ) : (
+                                        <div className="w-full h-full flex flex-col items-center justify-center p-1">
+                                            <span className="text-[14px] font-black leading-none mb-0.5" style={{ color: jokerCard.color }}>{jokerCard.val}</span>
+                                            <span className="text-[22px] leading-none" style={{ color: jokerCard.color }}>{jokerCard.suitSym}</span>
+                                        </div>
+                                    )}
                                 </div>
                             ) : (
                                 <div className="w-[44px] h-[62px] border border-white/20 rounded flex items-center justify-center bg-white/5">
