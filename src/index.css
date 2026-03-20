@@ -742,14 +742,13 @@
 
   .br-right-panel {
     bottom: 5px;
-    transform: scale(0.9);
+    transform: scale(0.6);
     transform-origin: bottom right;
   }
 
   .br-history-panel {
-    bottom: 100px;
-
-    transform: scale(0.85);
+    bottom: 90px;
+    transform: scale(0.5);
     transform-origin: bottom right;
   }
 
@@ -758,6 +757,8 @@
     transform: scale(0.85);
   }
 }
+
+
 
 @media (max-width: 650px) {
   .br-left-panel {
@@ -793,19 +794,19 @@
   }
 
   .br-center-panel {
-    transform: translateX(-50%) scale(0.85);
+    transform: translateX(-50%) scale(0.70);
     transform-origin: bottom center;
     bottom: 15px;
   }
 
   .br-right-panel {
-    transform: scale(0.5);
+    transform: scale(0.4);
     transform-origin: bottom right;
     bottom: 0;
   }
 
   .br-history-panel {
-    transform: scale(0.5);
+    transform: scale(0.4);
     transform-origin: bottom right;
     bottom: 40px;
   }
@@ -815,3 +816,7 @@
     transform: scale(0.8);
   }
 }
+
+
+
+
