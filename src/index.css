@@ -616,3 +616,202 @@
     box-shadow: 0 0 30px rgba(255, 215, 0, 0.8), 0 0 60px rgba(255, 215, 0, 0.4);
   }
 }
+
+/* ── BETTING ROOM NEW RESPONSIVE CLASSES ── */
+.br-left-panel {
+  position: absolute;
+  bottom: 20px;
+  left: 100px;
+  z-index: 20;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  padding: 10px;
+  gap: 8px;
+  background: linear-gradient(to right, rgba(0, 0, 0, 0.85) 80%, transparent);
+  min-width: 220px;
+  transition: all 0.3s ease;
+}
+
+.br-center-panel {
+  position: absolute;
+  bottom: 40px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 20;
+  display: flex;
+  flex-direction: column;
+  width: calc(100% - 440px);
+  max-width: 460px;
+  min-width: 220px;
+  height: 115px;
+  transition: all 0.3s ease;
+}
+
+.br-right-panel {
+  position: absolute;
+  right: 0;
+  top: 0;
+  bottom: 40px;
+  z-index: 20;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  justify-content: flex-end;
+  padding: 0 10px 18px 10px;
+  background: linear-gradient(to left, rgba(0, 0, 0, 0.6), transparent);
+  width: 115px;
+  gap: 10px;
+  transition: all 0.3s ease;
+}
+
+.br-history-panel {
+  position: absolute;
+  right: 0;
+  bottom: 120px;
+  z-index: 20;
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  flex-wrap: nowrap;
+  gap: 5px;
+  padding: 6px 10px;
+  background: linear-gradient(to left, rgba(0, 0, 0, 0.5), transparent);
+  pointer-events: none;
+  justify-content: flex-end;
+  transition: all 0.3s ease;
+}
+
+.br-closed-overlay {
+  background: rgba(0, 0, 0, 0.75);
+  backdrop-filter: blur(6px);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 14px;
+  padding: 20px 32px;
+  text-align: center;
+  transition: all 0.3s ease;
+}
+
+.br-result-overlay {
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 16px;
+  padding: 28px 40px;
+  text-align: center;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.6);
+  transition: all 0.3s ease;
+}
+
+/* Landscape/Mobile overrides */
+@media (max-width: 1100px) {
+  .br-center-panel {
+    width: 440px;
+  }
+
+  .br-left-panel {
+    left: 20px;
+  }
+
+  .br-right-panel {
+    transform: scale(0.5);
+    transform-origin: bottom right;
+    right: 20px;
+  }
+
+  .br-history-panel {
+    transform: scale(0.5);
+    transform-origin: bottom right;
+    right: 20px;
+    bottom: 90px;
+  }
+}
+
+@media (max-width: 900px) {
+  .br-left-panel {
+    left: 5px;
+    bottom: 5px;
+    transform: scale(0.85);
+    transform-origin: bottom left;
+  }
+
+  .br-center-panel {
+    bottom: 5px;
+    width: 380px;
+    transform: translateX(-50%) scale(0.85);
+    transform-origin: bottom center;
+  }
+
+  .br-right-panel {
+    bottom: 5px;
+    transform: scale(0.9);
+    transform-origin: bottom right;
+  }
+
+  .br-history-panel {
+    bottom: 100px;
+
+    transform: scale(0.85);
+    transform-origin: bottom right;
+  }
+
+  .br-closed-overlay,
+  .br-result-overlay {
+    transform: scale(0.85);
+  }
+}
+
+@media (max-width: 650px) {
+  .br-left-panel {
+    transform: scale(0.7);
+  }
+
+  .br-center-panel {
+    width: 320px;
+    transform: translateX(-50%) scale(0.75);
+  }
+
+  .br-right-panel {
+    transform: scale(0.75);
+  }
+
+  .br-history-panel {
+    bottom: 80px;
+    transform: scale(0.75);
+  }
+
+  .br-closed-overlay,
+  .br-result-overlay {
+    transform: scale(0.75);
+  }
+}
+
+@media (max-height: 450px) {
+  .br-left-panel {
+    transform: scale(0.8);
+    transform-origin: bottom left;
+    bottom: 0;
+    left: 5px;
+  }
+
+  .br-center-panel {
+    transform: translateX(-50%) scale(0.85);
+    transform-origin: bottom center;
+    bottom: 15px;
+  }
+
+  .br-right-panel {
+    transform: scale(0.5);
+    transform-origin: bottom right;
+    bottom: 0;
+  }
+
+  .br-history-panel {
+    transform: scale(0.5);
+    transform-origin: bottom right;
+    bottom: 40px;
+  }
+
+  .br-closed-overlay,
+  .br-result-overlay {
+    transform: scale(0.8);
+  }
+}

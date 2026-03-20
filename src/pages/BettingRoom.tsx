@@ -355,14 +355,7 @@ const BettingRoom = () => {
             </div>
 
             {/* ── BOTTOM CONTROL PANEL (LEFT SIDE) ── */}
-            <div style={{
-                position: "absolute", bottom: 20, left: 100, zIndex: 20,
-                display: "flex", flexDirection: "column", alignItems: "flex-start",
-                padding: "10px 10px 10px 10px",
-                gap: 8,
-                background: "linear-gradient(to right, rgba(0,0,0,0.85) 80%, transparent)",
-                minWidth: 220,
-            }}>
+            <div className="br-left-panel">
                 {/* Logo */}
                 <div style={{ display: "flex", alignItems: "center", marginBottom: -70 }}>
                     <img
@@ -459,13 +452,7 @@ const BettingRoom = () => {
             </div>
 
             {/* ── ANDAR / BAHAR BETTING AREA (CENTER-BOTTOM) ── */}
-            <div style={{
-                position: "absolute", bottom: 40, left: "50%", transform: "translateX(-50%)",
-                zIndex: 20,
-                display: "flex", flexDirection: "column",
-                width: "calc(100% - 440px)", maxWidth: 460, minWidth: 220,
-                height: 115,
-            }}>
+            <div className="br-center-panel">
                 <div style={{ position: "relative", width: "100%", height: "100%", display: "flex", flexDirection: "column" }}>
 
                     {/* ANDAR */}
@@ -614,14 +601,7 @@ const BettingRoom = () => {
             </div>
 
             {/* ── RIGHT PANEL: Progress bar + Bet limit ── */}
-            <div style={{
-                position: "absolute", right: 0, top: 0, bottom: 40, zIndex: 20,
-                display: "flex", flexDirection: "column", alignItems: "flex-end", justifyContent: "flex-end",
-                padding: "0 10px 18px 10px",
-                background: "linear-gradient(to left, rgba(0,0,0,0.6), transparent)",
-                width: 115,
-                gap: 10,
-            }}>
+            <div className="br-right-panel">
                 {/* Progress bar (red horizontal bar) */}
                 <div style={{
                     width: 400, height: 13, borderRadius: 4,
@@ -645,15 +625,7 @@ const BettingRoom = () => {
             </div>
 
             {/* ── ROUND HISTORY: right-side horizontal A/B scoreboard ── */}
-            <div style={{
-                position: "absolute", right: 0, bottom: 120, zIndex: 20,
-                display: "flex", flexDirection: "row", alignItems: "center",
-                flexWrap: "nowrap", gap: 5,
-                padding: "6px 10px",
-                background: "linear-gradient(to left, rgba(0,0,0,0.5), transparent)",
-                pointerEvents: "none",
-                justifyContent: "flex-end",
-            }}>
+            <div className="br-history-panel">
                 {roundHistory.slice(-13).map((r, i, arr) => {
                     const isAndar = r.result === "ANDAR";
                     const isLatest = i === arr.length - 1;
@@ -691,11 +663,7 @@ const BettingRoom = () => {
             {/* ── BETTING CLOSED OVERLAY ── */}
             {!bettingOpen && !localResult && (
                 <div style={{ position: "absolute", inset: 0, zIndex: 30, display: "flex", alignItems: "center", justifyContent: "center", pointerEvents: "none" }}>
-                    <div style={{
-                        background: "rgba(0,0,0,0.75)", backdropFilter: "blur(6px)",
-                        border: "1px solid rgba(255,255,255,0.12)", borderRadius: 14,
-                        padding: "20px 32px", textAlign: "center",
-                    }}>
+                    <div className="br-closed-overlay">
                         <div style={{ fontSize: 30, marginBottom: 8 }}>🚫</div>
                         <div style={{ color: "#fff", fontWeight: 900, fontSize: 15, letterSpacing: "0.15em", textTransform: "uppercase" }}>Betting Closed</div>
                         <div style={{ color: "rgba(255,255,255,0.4)", fontSize: 11, marginTop: 4 }}>Waiting for result...</div>
@@ -710,13 +678,10 @@ const BettingRoom = () => {
             {showResultPopup && localResult && (
                 <div style={{ position: "absolute", inset: 0, zIndex: 40, display: "flex", alignItems: "center", justifyContent: "center", background: "rgba(0,0,0,0.65)", cursor: "pointer" }}
                     onClick={() => setShowResultPopup(false)}>
-                    <div style={{
+                    <div className="br-result-overlay" style={{
                         background: (localResult === "ANDAR" && andarTotal > 0) || (localResult === "BAHAR" && baharTotal > 0)
                             ? "linear-gradient(135deg, #1a5c2a, #27ae60)"
-                            : "linear-gradient(135deg, #5c1a1a, #c0392b)",
-                        border: "1px solid rgba(255,255,255,0.2)", borderRadius: 16,
-                        padding: "28px 40px", textAlign: "center",
-                        boxShadow: "0 20px 60px rgba(0,0,0,0.6)",
+                            : "linear-gradient(135deg, #5c1a1a, #c0392b)"
                     }}>
                         <div style={{ fontSize: 44, marginBottom: 8 }}>
                             {(localResult === "ANDAR" && andarTotal > 0) || (localResult === "BAHAR" && baharTotal > 0) ? "🏆" : "😔"}
