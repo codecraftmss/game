@@ -407,8 +407,8 @@ const AdminDashboard = () => {
 
           <div className="grid grid-cols-12 gap-4 h-[440px]">
             {/* COLUMN 1: History & Broadcast */}
-            <div className="col-span-3 space-y-4 flex flex-col">
-              <div className="rounded-2xl flex-1 flex flex-col overflow-hidden bg-black/40 border border-white/5">
+            <div className="col-span-3 space-y-4 flex flex-col h-full min-h-0">
+              <div className="rounded-2xl flex-1 flex flex-col min-h-0 overflow-hidden bg-black/40 border border-white/5">
                 <div className="px-4 py-2.5 flex items-center justify-between bg-white/5 border-b border-white/5">
                   <div className="flex items-center gap-2 uppercase tracking-widest">
                     <Trophy className="w-3.5 h-3.5 text-amber-400" />

@@ -58,6 +58,26 @@ const BettingRoom = () => {
     // Round history for the A/B dots indicator
     const [roundHistory, setRoundHistory] = useState<Array<{ result: "ANDAR" | "BAHAR" }>>([]);
 
+    const [isHistoryOpen, setIsHistoryOpen] = useState(false);
+    const [userBets, setUserBets] = useState<any[]>([]);
+
+    const fetchUserBets = async () => {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) return;
+        const { data } = await supabase
+            .from("bets" as any)
+            .select("*")
+            .eq("user_id", user.id)
+            .eq("room_id", roomId)
+            .order("created_at", { ascending: false })
+            .limit(30);
+        if (data) setUserBets(data);
+    };
+
+    useEffect(() => {
+        if (isHistoryOpen) fetchUserBets();
+    }, [isHistoryOpen, roomId]);
+
     const andarBets = betHistory.filter(b => b.side === "andar");
     const baharBets = betHistory.filter(b => b.side === "bahar");
     const andarTotal = andarBets.reduce((s, v) => s + v.amount, 0);
@@ -319,6 +339,7 @@ const BettingRoom = () => {
         else if (gameState?.betting_phase === "2ND_BET") setSecondBetTotal(totalBet);
 
         setBetPlaced(true); betPlacedRef.current = true;
+        if (isHistoryOpen) fetchUserBets();
         toast({ title: "Bets Placed!", description: `Total: ₹${totalBet.toLocaleString()}` });
     };
 
@@ -380,7 +401,7 @@ const BettingRoom = () => {
 
                 {/* Right: Icons */}
                 <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
-                    <button onClick={() => navigate("/dashboard")} style={{ background: "none", border: "none", cursor: "pointer", color: "rgba(255,255,255,0.7)", fontSize: 18, display: "flex", alignItems: "center" }} title="History">
+                    <button onClick={() => setIsHistoryOpen(true)} style={{ background: "none", border: "none", cursor: "pointer", color: "rgba(255,255,255,0.7)", fontSize: 18, display: "flex", alignItems: "center" }} title="History">
                         🕐
                     </button>
                     <button style={{ background: "none", border: "none", cursor: "pointer", color: "rgba(255,255,255,0.7)", fontSize: 18, display: "flex", alignItems: "center" }} title="Volume">
@@ -393,7 +414,7 @@ const BettingRoom = () => {
             </div>
 
             {/* ── BOTTOM CONTROL PANEL (LEFT SIDE) ── */}
-            <div className="br-left-panel">
+            <div className="br-left-panel" style={{ pointerEvents: bettingOpen ? "auto" : "none" }}>
                 {/* Logo */}
                 <div style={{ display: "flex", alignItems: "center", marginBottom: -70 }}>
                     <img
@@ -490,7 +511,7 @@ const BettingRoom = () => {
             </div>
 
             {/* ── ANDAR / BAHAR BETTING AREA (CENTER-BOTTOM) ── */}
-            <div className="br-center-panel">
+            <div className="br-center-panel" style={{ pointerEvents: bettingOpen ? "auto" : "none", filter: bettingOpen ? "none" : "grayscale(35%)" }}>
                 <div style={{ position: "relative", width: "100%", height: "100%", display: "flex", flexDirection: "column" }}>
 
                     {/* ANDAR */}
@@ -711,6 +732,47 @@ const BettingRoom = () => {
                     </div>
                 </div>
             )}
+
+            {/* ── HISTORY PANEL (SLIDE-OUT) ── */}
+            <div className={`fixed top-0 right-0 h-full w-80 bg-[#0a0a0f] border-l border-white/10 z-[100] transform transition-transform duration-300 ease-in-out ${isHistoryOpen ? "translate-x-0" : "translate-x-full"}`} style={{ boxShadow: "-10px 0 30px rgba(0,0,0,0.8)" }}>
+                <div className="flex items-center justify-between p-4 border-b border-white/10 bg-black/20">
+                    <div className="flex items-center gap-2">
+                        <span className="text-xl">📜</span>
+                        <h2 className="text-sm font-black text-white uppercase tracking-widest">My Bet Ledger</h2>
+                    </div>
+                    <button onClick={() => setIsHistoryOpen(false)} className="text-white/50 hover:text-white text-2xl leading-none">&times;</button>
+                </div>
+                <div className="p-4 overflow-y-auto h-[calc(100vh-65px)]">
+                    {userBets.length === 0 ? (
+                        <div className="text-center text-white/30 text-xs mt-10">No bets found.</div>
+                    ) : (
+                        <div className="space-y-3">
+                            {userBets.map((b, i) => (
+                                <div key={i} className="bg-white/5 rounded-lg p-3 border border-white/10">
+                                    <div className="flex items-center justify-between mb-2">
+                                        <span className="text-[10px] font-black text-white/50 uppercase tracking-wider">Round #{b.round_number}</span>
+                                        <span className="text-[10px] text-white/30">{new Date(b.created_at).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</span>
+                                    </div>
+                                    <div className="flex items-center justify-between">
+                                        <span className={`text-[11px] font-black px-2 py-0.5 rounded uppercase ${b.side?.toUpperCase() === "ANDAR" ? "bg-red-500/20 text-red-500 border border-red-500/30" : "bg-blue-500/20 text-blue-400 border border-blue-500/30"}`}>
+                                            {b.side}
+                                        </span>
+                                        <span className="text-sm font-bold text-white">₹{b.amount?.toLocaleString()}</span>
+                                    </div>
+                                    {(b.status || b.payout) && (
+                                        <div className="mt-2 pt-2 border-t border-white/10 flex justify-between items-center text-[10px]">
+                                            <span className="text-white/40 uppercase tracking-wider font-black">Status:</span>
+                                            <span className={`font-black uppercase tracking-widest ${b.status?.toUpperCase() === 'WON' ? 'text-emerald-400' : b.status?.toUpperCase() === 'LOST' ? 'text-red-400' : 'text-amber-400'}`}>
+                                                {b.status || 'PENDING'}
+                                            </span>
+                                        </div>
+                                    )}
+                                </div>
+                            ))}
+                        </div>
+                    )}
+                </div>
+            </div>
 
             {/* ── RESULT POPUP ── */}
             {showResultPopup && localResult && (
