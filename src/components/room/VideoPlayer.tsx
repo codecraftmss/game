@@ -63,18 +63,22 @@ const VideoPlayer = ({ streamUrl }: VideoPlayerProps) => {
 
             {youtubeId ? (
                 /* YouTube embed */
-                <iframe
-                    className="w-full h-full"
-                    src={`https://www.youtube.com/embed/${youtubeId}?autoplay=1&mute=1&controls=0&modestbranding=1&rel=0&playsinline=1`}
-                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                    allowFullScreen
-                    style={{ border: "none" }}
-                />
+                <div className="w-full h-full relative">
+                    {/* Invisible overlay strictly blocking all interactions */}
+                    <div className="absolute inset-0 z-10"></div>
+                    <iframe
+                        className="w-full h-full pointer-events-none"
+                        src={`https://www.youtube.com/embed/${youtubeId}?autoplay=1&mute=1&controls=0&modestbranding=1&rel=0&playsinline=1`}
+                        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                        allowFullScreen
+                        style={{ border: "none" }}
+                    />
+                </div>
             ) : streamUrl ? (
                 /* HLS stream (VPS / Cloudflare) */
                 <video
                     ref={videoRef}
-                    className="w-full h-full object-cover"
+                    className="w-full h-full object-cover pointer-events-none select-none"
                     muted
                     autoPlay
                     playsInline
