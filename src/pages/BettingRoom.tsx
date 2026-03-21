@@ -239,13 +239,25 @@ const BettingRoom = () => {
 
     // ── Fullscreen ──
     const toggleFullscreen = () => {
-        if (!document.fullscreenElement) {
-            document.documentElement.requestFullscreen().catch(err => {
-                console.error(`Error attempting to enable fullscreen: ${err.message}`);
-            });
+        const elem = document.documentElement as any;
+        const doc = document as any;
+        const isFullscreen = doc.fullscreenElement || doc.webkitFullscreenElement || doc.mozFullScreenElement || doc.msFullscreenElement;
+
+        if (!isFullscreen) {
+            if (elem.requestFullscreen) {
+                elem.requestFullscreen().catch((err: any) => console.error(err));
+            } else if (elem.webkitRequestFullscreen) {
+                elem.webkitRequestFullscreen();
+            } else if (elem.msRequestFullscreen) {
+                elem.msRequestFullscreen();
+            }
         } else {
-            if (document.exitFullscreen) {
-                document.exitFullscreen();
+            if (doc.exitFullscreen) {
+                doc.exitFullscreen();
+            } else if (doc.webkitExitFullscreen) {
+                doc.webkitExitFullscreen();
+            } else if (doc.msExitFullscreen) {
+                doc.msExitFullscreen();
             }
         }
     };
