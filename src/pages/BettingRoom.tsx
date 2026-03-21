@@ -237,6 +237,19 @@ const BettingRoom = () => {
         return () => { window.removeEventListener("resize", check); window.removeEventListener("orientationchange", check); };
     }, []);
 
+    // ── Fullscreen ──
+    const toggleFullscreen = () => {
+        if (!document.fullscreenElement) {
+            document.documentElement.requestFullscreen().catch(err => {
+                console.error(`Error attempting to enable fullscreen: ${err.message}`);
+            });
+        } else {
+            if (document.exitFullscreen) {
+                document.exitFullscreen();
+            }
+        }
+    };
+
     // ── Betting actions ──
     const handleBet = (side: "andar" | "bahar") => {
         if (!bettingOpen || betPlaced || balance < selectedChip) return;
@@ -348,7 +361,7 @@ const BettingRoom = () => {
                     <button style={{ background: "none", border: "none", cursor: "pointer", color: "rgba(255,255,255,0.7)", fontSize: 18, display: "flex", alignItems: "center" }} title="Volume">
                         🔊
                     </button>
-                    <button style={{ background: "none", border: "none", cursor: "pointer", color: "rgba(255,255,255,0.7)", fontSize: 18, display: "flex", alignItems: "center" }} title="Fullscreen">
+                    <button onClick={toggleFullscreen} style={{ background: "none", border: "none", cursor: "pointer", color: "rgba(255,255,255,0.7)", fontSize: 18, display: "flex", alignItems: "center" }} title="Fullscreen">
                         ⛶
                     </button>
                 </div>
