@@ -239,26 +239,39 @@ const BettingRoom = () => {
 
     // ── Fullscreen ──
     const toggleFullscreen = () => {
-        const elem = document.documentElement as any;
+        const elem = document.getElementById("root") || document.body || document.documentElement;
+        const anyElem = elem as any;
         const doc = document as any;
         const isFullscreen = doc.fullscreenElement || doc.webkitFullscreenElement || doc.mozFullScreenElement || doc.msFullscreenElement;
 
-        if (!isFullscreen) {
-            if (elem.requestFullscreen) {
-                elem.requestFullscreen().catch((err: any) => console.error(err));
-            } else if (elem.webkitRequestFullscreen) {
-                elem.webkitRequestFullscreen();
-            } else if (elem.msRequestFullscreen) {
-                elem.msRequestFullscreen();
+        try {
+            if (!isFullscreen) {
+                if (anyElem.requestFullscreen) {
+                    anyElem.requestFullscreen().catch((err: any) => {
+                        console.error(err);
+                        toast({ title: "Fullscreen blocked", description: err.message || "Browser blocked fullscreen.", variant: "destructive" });
+                    });
+                } else if (anyElem.webkitRequestFullscreen) {
+                    anyElem.webkitRequestFullscreen().catch((err: any) => {
+                        console.error(err);
+                        toast({ title: "Fullscreen Safari blocked", description: err.message || "Safari blocked fullscreen.", variant: "destructive" });
+                    });
+                } else if (anyElem.msRequestFullscreen) {
+                    anyElem.msRequestFullscreen();
+                } else {
+                    toast({ title: "Not Supported", description: "Device does not support standard fullscreen.", variant: "destructive" });
+                }
+            } else {
+                if (doc.exitFullscreen) {
+                    doc.exitFullscreen();
+                } else if (doc.webkitExitFullscreen) {
+                    doc.webkitExitFullscreen();
+                } else if (doc.msExitFullscreen) {
+                    doc.msExitFullscreen();
+                }
             }
-        } else {
-            if (doc.exitFullscreen) {
-                doc.exitFullscreen();
-            } else if (doc.webkitExitFullscreen) {
-                doc.webkitExitFullscreen();
-            } else if (doc.msExitFullscreen) {
-                doc.msExitFullscreen();
-            }
+        } catch (err: any) {
+            toast({ title: "Error", description: err.message, variant: "destructive" });
         }
     };
 
