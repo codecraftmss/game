@@ -43,9 +43,7 @@ const BettingRoom = () => {
     const [betHistory, setBetHistory] = useState<BetEntry[]>([]);
     const betHistoryRef = useRef<BetEntry[]>([]);
     betHistoryRef.current = betHistory;
-    const [betPlaced, setBetPlaced] = useState(false);
-    const betPlacedRef = useRef(false);
-    betPlacedRef.current = betPlaced;
+    const [placedBetsCount, setPlacedBetsCount] = useState(0);
 
     const [showResultPopup, setShowResultPopup] = useState(false);
     const [localResult, setLocalResult] = useState<"ANDAR" | "BAHAR" | null>(null);
@@ -167,7 +165,7 @@ const BettingRoom = () => {
                     }
                     if (newState.betting_status === "OPEN" && prev?.betting_status === "CLOSED") {
                         setBetHistory([]); betHistoryRef.current = [];
-                        setBetPlaced(false); betPlacedRef.current = false;
+                        setPlacedBetsCount(0);
                         setLocalResult(null); setShowResultPopup(false);
                         setFirstBetTotal(0); setSecondBetTotal(0);
                     }
@@ -210,7 +208,7 @@ const BettingRoom = () => {
                 }
                 if (incoming.betting_status === "OPEN" && prev?.betting_status === "CLOSED") {
                     setBetHistory([]); betHistoryRef.current = [];
-                    setBetPlaced(false); betPlacedRef.current = false;
+                    setPlacedBetsCount(0);
                     setLocalResult(null); setShowResultPopup(false);
                     setFirstBetTotal(0); setSecondBetTotal(0);
                 }
@@ -297,50 +295,64 @@ const BettingRoom = () => {
 
     // ── Betting actions ──
     const handleBet = (side: "andar" | "bahar") => {
-        if (!bettingOpen || betPlaced || balance < selectedChip) return;
+        if (!bettingOpen || balance < selectedChip) return;
         setBetHistory(h => { const next = [...h, { side, amount: selectedChip }]; betHistoryRef.current = next; return next; });
         setBalance(b => { balanceRef.current = b - selectedChip; return b - selectedChip; });
     };
 
     const handleUndo = () => {
-        if (betHistory.length === 0 || !bettingOpen) return;
+        if (betHistory.length === 0 || betHistory.length <= placedBetsCount || !bettingOpen) return;
         const last = betHistory[betHistory.length - 1];
         setBetHistory(h => { const next = h.slice(0, -1); betHistoryRef.current = next; return next; });
         setBalance(b => { balanceRef.current = b + last.amount; return b + last.amount; });
     };
 
     const handlePlaceBet = async () => {
-        if (!bettingOpen || totalBet === 0 || betPlaced) return;
+        if (!bettingOpen || totalBet === 0) return;
+        const unplacedBets = betHistory.slice(placedBetsCount);
+        const newAndarTotal = unplacedBets.filter(b => b.side === "andar").reduce((s, b) => s + b.amount, 0);
+        const newBaharTotal = unplacedBets.filter(b => b.side === "bahar").reduce((s, b) => s + b.amount, 0);
+
+        if (newAndarTotal === 0 && newBaharTotal === 0) return;
+
         const { data: { user } } = await supabase.auth.getUser();
         if (!user) return;
 
-        if (andarTotal > 0) {
+        let placedSomething = false;
+
+        if (newAndarTotal > 0) {
             const { data, error } = await (supabase.rpc("place_bet" as any, {
                 p_user_id: user.id, p_room_id: roomId,
-                p_round_number: gameState?.current_round || 1, p_side: "ANDAR", p_amount: andarTotal
+                p_round_number: gameState?.current_round || 1, p_side: "ANDAR", p_amount: newAndarTotal
             }) as any);
             if (error || !(data as any).success) {
                 toast({ title: "Bet Failed", description: error?.message || (data as any)?.message, variant: "destructive" });
                 return;
             }
+            placedSomething = true;
+            toast({ title: "Bet Placed!", description: `₹${newAndarTotal.toLocaleString()} on ANDAR` });
         }
-        if (baharTotal > 0) {
+        if (newBaharTotal > 0) {
             const { data, error } = await (supabase.rpc("place_bet" as any, {
                 p_user_id: user.id, p_room_id: roomId,
-                p_round_number: gameState?.current_round || 1, p_side: "BAHAR", p_amount: baharTotal
+                p_round_number: gameState?.current_round || 1, p_side: "BAHAR", p_amount: newBaharTotal
             }) as any);
             if (error || !(data as any).success) {
                 toast({ title: "Bet Failed", description: error?.message || (data as any)?.message, variant: "destructive" });
                 return;
             }
+            placedSomething = true;
+            toast({ title: "Bet Placed!", description: `₹${newBaharTotal.toLocaleString()} on BAHAR` });
         }
 
-        if (gameState?.betting_phase === "1ST_BET") setFirstBetTotal(totalBet);
-        else if (gameState?.betting_phase === "2ND_BET") setSecondBetTotal(totalBet);
-
-        setBetPlaced(true); betPlacedRef.current = true;
-        if (isHistoryOpen) fetchUserBets();
-        toast({ title: "Bets Placed!", description: `Total: ₹${totalBet.toLocaleString()}` });
+        if (placedSomething) {
+            setPlacedBetsCount(betHistory.length);
+            
+            if (gameState?.betting_phase === "1ST_BET") setFirstBetTotal(totalBet);
+            else if (gameState?.betting_phase === "2ND_BET") setSecondBetTotal(totalBet);
+    
+            if (isHistoryOpen) fetchUserBets();
+        }
     };
 
     // Parse joker card
@@ -431,8 +443,8 @@ const BettingRoom = () => {
                         const isSel = selectedChip === chip.value;
                         return (
                             <button key={chip.value}
-                                onClick={() => bettingOpen && !betPlaced && setSelectedChip(chip.value)}
-                                disabled={!bettingOpen || betPlaced}
+                                onClick={() => bettingOpen && setSelectedChip(chip.value)}
+                                disabled={!bettingOpen}
                                 style={{
                                     width: isSel ? 42 : 36, height: isSel ? 42 : 36,
                                     borderRadius: "50%",
@@ -441,8 +453,8 @@ const BettingRoom = () => {
                                     boxShadow: isSel ? "0 0 10px #f1c40f99" : `0 3px 8px ${chip.shadow}88`,
                                     color: "#fff", fontWeight: 900,
                                     fontSize: chip.value >= 10000 ? 8 : 9,
-                                    cursor: bettingOpen && !betPlaced ? "pointer" : "not-allowed",
-                                    opacity: !bettingOpen || betPlaced ? 0.45 : 1,
+                                    cursor: bettingOpen ? "pointer" : "not-allowed",
+                                    opacity: !bettingOpen ? 0.45 : 1,
                                     position: "relative",
                                     display: "flex", alignItems: "center", justifyContent: "center",
                                     flexShrink: 0,
@@ -464,30 +476,30 @@ const BettingRoom = () => {
                 {/* UNDO + PLACE BET buttons */}
                 <div style={{ display: "flex", gap: 6, width: "100%" }}>
                     <button onClick={handleUndo}
-                        disabled={betHistory.length === 0 || !bettingOpen}
+                        disabled={betHistory.length <= placedBetsCount || !bettingOpen}
                         style={{
                             flex: 1, padding: "7px 0",
-                            borderRadius: 6, border: "none", cursor: betHistory.length > 0 && bettingOpen ? "pointer" : "not-allowed",
-                            background: betHistory.length > 0 && bettingOpen ? "#8b1a1a" : "rgba(255,255,255,0.08)",
-                            color: betHistory.length > 0 && bettingOpen ? "#fff" : "rgba(255,255,255,0.25)",
+                            borderRadius: 6, border: "none", cursor: betHistory.length > placedBetsCount && bettingOpen ? "pointer" : "not-allowed",
+                            background: betHistory.length > placedBetsCount && bettingOpen ? "#8b1a1a" : "rgba(255,255,255,0.08)",
+                            color: betHistory.length > placedBetsCount && bettingOpen ? "#fff" : "rgba(255,255,255,0.25)",
                             fontWeight: 700, fontSize: 11, letterSpacing: "0.1em", textTransform: "uppercase",
-                            opacity: betHistory.length > 0 && bettingOpen ? 1 : 0.6,
+                            opacity: betHistory.length > placedBetsCount && bettingOpen ? 1 : 0.6,
                         }}>
                         UNDO
                     </button>
                     <button onClick={handlePlaceBet}
-                        disabled={!bettingOpen || totalBet === 0 || betPlaced}
+                        disabled={!bettingOpen || betHistory.length <= placedBetsCount}
                         style={{
                             flex: 1.4, padding: "7px 0",
                             borderRadius: 6, border: "none",
-                            cursor: bettingOpen && totalBet > 0 && !betPlaced ? "pointer" : "not-allowed",
-                            background: bettingOpen && totalBet > 0 && !betPlaced
+                            cursor: bettingOpen && betHistory.length > placedBetsCount ? "pointer" : "not-allowed",
+                            background: bettingOpen && betHistory.length > placedBetsCount
                                 ? "linear-gradient(135deg, #27ae60, #1e8449)"
                                 : "rgba(255,255,255,0.08)",
-                            color: bettingOpen && totalBet > 0 && !betPlaced ? "#fff" : "rgba(255,255,255,0.25)",
+                            color: bettingOpen && betHistory.length > placedBetsCount ? "#fff" : "rgba(255,255,255,0.25)",
                             fontWeight: 800, fontSize: 11, letterSpacing: "0.1em", textTransform: "uppercase",
                         }}>
-                        {betPlaced ? "✓ PLACED" : "PLACE BET"}
+                        {bettingOpen && totalBet > 0 && betHistory.length === placedBetsCount ? "✓ PLACED" : "PLACE BET"}
                     </button>
                 </div>
 
@@ -516,7 +528,7 @@ const BettingRoom = () => {
 
                     {/* ANDAR */}
                     <button onClick={() => handleBet("andar")}
-                        disabled={!bettingOpen || betPlaced}
+                        disabled={!bettingOpen}
                         style={{
                             flex: 1,
                             borderRadius: "10px 10px 0 0",
@@ -524,8 +536,8 @@ const BettingRoom = () => {
                             borderBottom: "1px solid #629ca7",
                             background: "linear-gradient(135deg, #3c7280 0%, #2b5460 100%)",
                             padding: "8px 14px",
-                            cursor: bettingOpen && !betPlaced ? "pointer" : "not-allowed",
-                            opacity: !bettingOpen || betPlaced ? 0.55 : 1,
+                            cursor: bettingOpen ? "pointer" : "not-allowed",
+                            opacity: !bettingOpen ? 0.55 : 1,
                             position: "relative", overflow: "hidden",
                             boxShadow: localResult?.toLowerCase() === "andar" ? "0 0 20px rgba(98,156,167,0.8)" : "inset 0 0 30px rgba(0,0,0,0.3)",
                             transition: "all 0.15s ease",
@@ -568,7 +580,7 @@ const BettingRoom = () => {
 
                     {/* BAHAR */}
                     <button onClick={() => handleBet("bahar")}
-                        disabled={!bettingOpen || betPlaced}
+                        disabled={!bettingOpen}
                         style={{
                             flex: 1,
                             borderRadius: "0 0 10px 10px",
@@ -576,8 +588,8 @@ const BettingRoom = () => {
                             borderTop: "1px solid #bc6941",
                             background: "linear-gradient(135deg, #8f4f38 0%, #703726 100%)",
                             padding: "8px 14px",
-                            cursor: bettingOpen && !betPlaced ? "pointer" : "not-allowed",
-                            opacity: !bettingOpen || betPlaced ? 0.55 : 1,
+                            cursor: bettingOpen ? "pointer" : "not-allowed",
+                            opacity: !bettingOpen ? 0.55 : 1,
                             position: "relative", overflow: "hidden",
                             boxShadow: localResult?.toLowerCase() === "bahar" ? "0 0 20px rgba(188,105,65,0.8)" : "inset 0 0 30px rgba(0,0,0,0.3)",
                             transition: "all 0.15s ease",
@@ -787,7 +799,7 @@ const BettingRoom = () => {
                             {(localResult === "ANDAR" && andarTotal > 0) || (localResult === "BAHAR" && baharTotal > 0) ? "🏆" : "😔"}
                         </div>
                         <div style={{ color: "#fff", fontWeight: 900, fontSize: 22, letterSpacing: "0.1em", textTransform: "uppercase", marginBottom: 4 }}>
-                            {betPlaced
+                            {placedBetsCount > 0
                                 ? ((localResult === "ANDAR" && andarTotal > 0) || (localResult === "BAHAR" && baharTotal > 0) ? "You Win!" : "Better Luck!")
                                 : `${localResult} Wins!`}
                         </div>
