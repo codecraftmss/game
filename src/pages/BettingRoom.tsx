@@ -363,7 +363,8 @@ const BettingRoom = () => {
         if (newAndarTotal > 0) {
             const { data, error } = await (supabase.rpc("place_bet" as any, {
                 p_user_id: user.id, p_room_id: roomId,
-                p_round_number: gameState?.current_round || 1, p_side: "ANDAR", p_amount: newAndarTotal
+                p_round_number: gameState?.current_round || 1, p_side: "ANDAR", p_amount: newAndarTotal,
+                p_target_card: gameState?.target_card // Added target card
             }) as any);
             if (error || !(data as any).success) {
                 toast({ title: "Bet Failed", description: error?.message || (data as any)?.message, variant: "destructive" });
@@ -375,7 +376,8 @@ const BettingRoom = () => {
         if (newBaharTotal > 0) {
             const { data, error } = await (supabase.rpc("place_bet" as any, {
                 p_user_id: user.id, p_room_id: roomId,
-                p_round_number: gameState?.current_round || 1, p_side: "BAHAR", p_amount: newBaharTotal
+                p_round_number: gameState?.current_round || 1, p_side: "BAHAR", p_amount: newBaharTotal,
+                p_target_card: gameState?.target_card // Added target card
             }) as any);
             if (error || !(data as any).success) {
                 toast({ title: "Bet Failed", description: error?.message || (data as any)?.message, variant: "destructive" });
@@ -806,9 +808,16 @@ const BettingRoom = () => {
                                         <span className="text-[10px] text-white/30">{new Date(b.created_at).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</span>
                                     </div>
                                     <div className="flex items-center justify-between">
-                                        <span className={`text-[11px] font-black px-2 py-0.5 rounded uppercase ${b.side?.toUpperCase() === "ANDAR" ? "bg-red-500/20 text-red-500 border border-red-500/30" : "bg-blue-500/20 text-blue-400 border border-blue-500/30"}`}>
-                                            {b.side}
-                                        </span>
+                                        <div className="flex items-center gap-2">
+                                            <span className={`text-[11px] font-black px-2 py-0.5 rounded uppercase ${b.side?.toUpperCase() === "ANDAR" ? "bg-red-500/20 text-red-500 border border-red-500/30" : "bg-blue-500/20 text-blue-400 border border-blue-500/20"}`}>
+                                                {b.side}
+                                            </span>
+                                            {b.target_card && (
+                                                <span className="text-[10px] font-bold text-amber-500/80 bg-amber-500/10 px-1.5 py-0.5 rounded border border-amber-500/20">
+                                                    🃏 {b.target_card}
+                                                </span>
+                                            )}
+                                        </div>
                                         <span className="text-sm font-bold text-white">₹{b.amount?.toLocaleString()}</span>
                                     </div>
                                     {(b.status || b.payout) && (
