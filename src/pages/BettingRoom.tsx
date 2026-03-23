@@ -230,20 +230,36 @@ const BettingRoom = () => {
         check();
     }, [navigate]);
 
-    // ── Real-time balance sync ──
+    // ── Real-time balance sync & Polling Fallback ──
     useEffect(() => {
-        let authUser: any;
-        supabase.auth.getUser().then(({ data }) => { authUser = data.user; });
-        const channel = supabase
-            .channel(`player-profile-${roomId}`)
-            .on("postgres_changes", { event: "UPDATE", schema: "public", table: "profiles" }, (p) => {
-                if (authUser && p.new.id === authUser.id) {
+        let sub: any;
+        let pollInterval: any;
+        
+        const setup = async () => {
+            const { data: { user } } = await supabase.auth.getUser();
+            if (!user) return;
+            
+            sub = supabase.channel(`player-profile-${roomId}-${user.id}`)
+                .on("postgres_changes", { event: "UPDATE", schema: "public", table: "profiles", filter: `id=eq.${user.id}` }, (p) => {
                     setBalance((p.new as any).token_balance || 0);
                     balanceRef.current = (p.new as any).token_balance || 0;
+                })
+                .subscribe();
+                
+            pollInterval = setInterval(async () => {
+                const { data } = await supabase.from("profiles").select("token_balance").eq("id", user.id).maybeSingle() as any;
+                if (data) {
+                    setBalance(data.token_balance || 0);
+                    balanceRef.current = data.token_balance || 0;
                 }
-            })
-            .subscribe();
-        return () => { supabase.removeChannel(channel); };
+            }, 3000);
+        };
+        
+        setup();
+        return () => { 
+            if (sub) supabase.removeChannel(sub); 
+            if (pollInterval) clearInterval(pollInterval);
+        };
     }, [roomId]);
 
     // ── Portrait detection ──

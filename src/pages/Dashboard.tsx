@@ -108,19 +108,33 @@ const Dashboard = () => {
     return () => { supabase.removeChannel(channel); };
   }, []);
 
-  // ── Real-time balance subscription ──
+  // ── Real-time balance subscription & Polling Fallback ──
   useEffect(() => {
     let sub: any;
+    let pollInterval: any;
+    
     const setup = async () => {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
+      
+      // Realtime subscription
       sub = supabase.channel(`profile-${user.id}`)
         .on("postgres_changes", { event: "UPDATE", schema: "public", table: "profiles", filter: `id=eq.${user.id}` },
           (p) => setBalance((p.new as any).token_balance || 0))
         .subscribe();
+        
+      // Polling fallback to guarantee updates if Realtime is misconfigured
+      pollInterval = setInterval(async () => {
+        const { data } = await supabase.from("profiles").select("token_balance").eq("id", user.id).maybeSingle() as any;
+        if (data) setBalance(data.token_balance || 0);
+      }, 3000);
     };
+    
     setup();
-    return () => { if (sub) supabase.removeChannel(sub); };
+    return () => { 
+      if (sub) supabase.removeChannel(sub); 
+      if (pollInterval) clearInterval(pollInterval);
+    };
   }, []);
 
   const handleLogout = async () => { await logout(); navigate("/login"); };

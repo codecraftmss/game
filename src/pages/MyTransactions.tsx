@@ -58,20 +58,41 @@ const MyTransactions = () => {
 
   useEffect(() => { fetchProfileAndTransactions(); }, [fetchProfileAndTransactions]);
 
-  // Real-time updates for balance and new transactions
+  // Real-time updates & Polling Fallback
   useEffect(() => {
-    let authUser: any = null;
-    supabase.auth.getUser().then(({ data }) => { authUser = data.user; });
-
-    const channel = supabase
-      .channel("user-data-rt")
-      .on("postgres_changes", { event: "UPDATE", schema: "public", table: "profiles" }, 
-        (p) => { if (authUser && p.new.id === authUser.id) setUserProfile(p.new); })
-      .on("postgres_changes", { event: "INSERT", schema: "public", table: "token_transactions" },
-        (p) => { if (authUser && p.new.user_id === authUser.id) { fetchProfileAndTransactions(); } })
-      .subscribe();
+    let sub: any;
+    let pollInterval: any;
     
-    return () => { supabase.removeChannel(channel); };
+    const setupChannels = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+
+      sub = supabase
+        .channel(`user-data-rt-${user.id}`)
+        .on("postgres_changes", { event: "UPDATE", schema: "public", table: "profiles", filter: `id=eq.${user.id}` }, 
+          (p) => { setUserProfile(p.new); })
+        .on("postgres_changes", { event: "INSERT", schema: "public", table: "token_transactions", filter: `user_id=eq.${user.id}` },
+          (p) => { fetchProfileAndTransactions(); })
+        .subscribe();
+        
+      pollInterval = setInterval(async () => {
+        const { data } = await supabase.from("profiles").select("token_balance").eq("id", user.id).maybeSingle() as any;
+        if (data) {
+          setUserProfile((prev: any) => {
+             if (prev && prev.token_balance !== data.token_balance) {
+                fetchProfileAndTransactions();
+             }
+             return prev;
+          });
+        }
+      }, 3000);
+    };
+    setupChannels();
+    
+    return () => { 
+      if (sub) supabase.removeChannel(sub); 
+      if (pollInterval) clearInterval(pollInterval);
+    };
   }, [fetchProfileAndTransactions]);
 
   const handleLogout = async () => { await logout(); navigate("/login"); };
