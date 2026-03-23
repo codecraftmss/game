@@ -58,6 +58,9 @@ const BettingRoom = () => {
 
     const [isHistoryOpen, setIsHistoryOpen] = useState(false);
     const [userBets, setUserBets] = useState<any[]>([]);
+    const [showBettingClosedBanner, setShowBettingClosedBanner] = useState(false);
+    const [showBettingOpenBanner, setShowBettingOpenBanner] = useState(false);
+    const [showPhaseBanner, setShowPhaseBanner] = useState<"1ST" | "2ND" | null>(null);
 
     const fetchUserBets = async () => {
         const { data: { user } } = await supabase.auth.getUser();
@@ -82,6 +85,35 @@ const BettingRoom = () => {
     const baharTotal = baharBets.reduce((s, v) => s + v.amount, 0);
     const totalBet = andarTotal + baharTotal;
     const bettingOpen = gameState?.betting_status === "OPEN";
+
+    // ── Handle Betting Status & Phase Banners ──
+    useEffect(() => {
+        // Status transitions
+        if (gameState?.betting_status === "CLOSED" && !localResult) {
+            setShowBettingClosedBanner(true);
+            setShowBettingOpenBanner(false);
+            const timer = setTimeout(() => setShowBettingClosedBanner(false), 3500);
+            return () => clearTimeout(timer);
+        } else if (gameState?.betting_status === "OPEN") {
+            setShowBettingOpenBanner(true);
+            setShowBettingClosedBanner(false);
+            const timer = setTimeout(() => setShowBettingOpenBanner(false), 3500);
+            return () => clearTimeout(timer);
+        }
+    }, [gameState?.betting_status, localResult]);
+
+    useEffect(() => {
+        // Phase transitions
+        if (gameState?.betting_phase === "1ST_BET") {
+            setShowPhaseBanner("1ST");
+            const timer = setTimeout(() => setShowPhaseBanner(null), 3500);
+            return () => clearTimeout(timer);
+        } else if (gameState?.betting_phase === "2ND_BET") {
+            setShowPhaseBanner("2ND");
+            const timer = setTimeout(() => setShowPhaseBanner(null), 3500);
+            return () => clearTimeout(timer);
+        }
+    }, [gameState?.betting_phase]);
 
     // ── Fetch room ──
     useEffect(() => {
@@ -438,6 +470,74 @@ const BettingRoom = () => {
                 padding: "6px 12px",
                 background: "linear-gradient(to bottom, rgba(0,0,0,0.85), transparent)",
             }}>
+                {/* ── BETTING STATUS TOP BANNERS ── */}
+                {showBettingClosedBanner && (
+                    <div style={{
+                        position: "absolute", top: 60, left: "50%", transform: "translateX(-50%)",
+                        zIndex: 100, pointerEvents: "none",
+                        animation: "slideDown 0.5s cubic-bezier(0.19, 1, 0.22, 1) forwards"
+                    }}>
+                        <div style={{
+                            background: "rgba(192, 57, 43, 0.95)", backdropFilter: "blur(12px)",
+                            border: "1px solid rgba(255, 255, 255, 0.15)", borderRadius: 12,
+                            padding: "10px 24px", display: "flex", alignItems: "center", gap: 12,
+                            boxShadow: "0 10px 40px rgba(0,0,0,0.6), inset 0 1px 1px rgba(255,255,255,0.2)"
+                        }}>
+                            <div style={{ fontSize: 20 }}>🔒</div>
+                            <div style={{ textAlign: "center" }}>
+                                <div style={{ color: "#fff", fontWeight: 900, fontSize: 13, letterSpacing: "0.15em", textTransform: "uppercase" }}>Betting Closed</div>
+                                <div style={{ color: "rgba(255,255,255,0.7)", fontSize: 10, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.05em" }}>Wait for result</div>
+                            </div>
+                        </div>
+                    </div>
+                )}
+
+                {showBettingOpenBanner && (
+                    <div style={{
+                        position: "absolute", top: 60, left: "50%", transform: "translateX(-50%)",
+                        zIndex: 100, pointerEvents: "none",
+                        animation: "slideDown 0.5s cubic-bezier(0.19, 1, 0.22, 1) forwards"
+                    }}>
+                        <div style={{
+                            background: "rgba(39, 174, 96, 0.95)", backdropFilter: "blur(12px)",
+                            border: "1px solid rgba(255, 255, 255, 0.15)", borderRadius: 12,
+                            padding: "10px 24px", display: "flex", alignItems: "center", gap: 12,
+                            boxShadow: "0 10px 40px rgba(0,0,0,0.6), inset 0 1px 1px rgba(255,255,255,0.2)"
+                        }}>
+                            <div style={{ fontSize: 20 }}>🔓</div>
+                            <div style={{ textAlign: "center" }}>
+                                <div style={{ color: "#fff", fontWeight: 900, fontSize: 13, letterSpacing: "0.15em", textTransform: "uppercase" }}>Betting Opened</div>
+                                <div style={{ color: "rgba(255,255,255,0.7)", fontSize: 10, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.05em" }}>Place your bets</div>
+                            </div>
+                        </div>
+                    </div>
+                )}
+
+                {showPhaseBanner && (
+                    <div style={{
+                        position: "absolute", top: 60, left: "50%", transform: "translateX(-50%)",
+                        zIndex: 100, pointerEvents: "none",
+                        animation: "slideDown 0.5s cubic-bezier(0.19, 1, 0.22, 1) forwards"
+                    }}>
+                        <div style={{
+                            background: "rgba(41, 128, 185, 0.95)", backdropFilter: "blur(12px)",
+                            border: "1px solid rgba(255, 255, 255, 0.15)", borderRadius: 12,
+                            padding: "10px 24px", display: "flex", alignItems: "center", gap: 12,
+                            boxShadow: "0 10px 40px rgba(0,0,0,0.6), inset 0 1px 1px rgba(255,255,255,0.2)"
+                        }}>
+                            <div style={{ fontSize: 20 }}>🎰</div>
+                            <div style={{ textAlign: "center" }}>
+                                <div style={{ color: "#fff", fontWeight: 900, fontSize: 13, letterSpacing: "0.15em", textTransform: "uppercase" }}>
+                                    {showPhaseBanner === "1ST" ? "1st Bet Phase" : "2nd Bet Phase"}
+                                </div>
+                                <div style={{ color: "rgba(255,255,255,0.7)", fontSize: 10, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.05em" }}>
+                                    {showPhaseBanner === "1ST" ? "Round Initial Bets" : "Final Betting Phase"}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                )}
+
                 {/* Left: LIVE + Room Name */}
                 <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                     <div style={{
@@ -713,29 +813,7 @@ const BettingRoom = () => {
                 </div>
             </div>
 
-            {/* ── RIGHT PANEL: Progress bar + Bet limit ── */}
-            <div className="br-right-panel">
-                {/* Progress bar (red horizontal bar) */}
-                <div style={{
-                    width: 400, height: 13, borderRadius: 4,
-                    background: "rgba(255,255,255,0.1)",
-                    overflow: "hidden",
-                }}>
-                    <div style={{
-                        height: "100%",
-                        width: `${Math.min((totalBet / 1000000) * 100, 100)}%`,
-                        background: "linear-gradient(to right, #c0392b, #e74c3c)",
-                        borderRadius: 4,
-                        minWidth: totalBet > 0 ? 6 : 0,
-                        transition: "width 0.3s ease",
-                    }} />
-                </div>
 
-                {/* Bet limit text */}
-                <div style={{ color: "rgba(255,255,255,0.6)", fontSize: 20, fontWeight: 600, whiteSpace: "nowrap" }}>
-                    Bet: {totalBet.toLocaleString()}/1,000,000
-                </div>
-            </div>
 
             {/* ── ROUND HISTORY: right-side horizontal A/B scoreboard ── */}
             <div className="br-history-panel">
@@ -773,19 +851,7 @@ const BettingRoom = () => {
                 ))}
             </div>
 
-            {/* ── BETTING CLOSED OVERLAY ── */}
-            {!bettingOpen && !localResult && (
-                <div style={{ position: "absolute", inset: 0, zIndex: 30, display: "flex", alignItems: "center", justifyContent: "center", pointerEvents: "none" }}>
-                    <div className="br-closed-overlay">
-                        <div style={{ fontSize: 30, marginBottom: 8 }}>🚫</div>
-                        <div style={{ color: "#fff", fontWeight: 900, fontSize: 15, letterSpacing: "0.15em", textTransform: "uppercase" }}>Betting Closed</div>
-                        <div style={{ color: "rgba(255,255,255,0.4)", fontSize: 11, marginTop: 4 }}>Waiting for result...</div>
-                        <div style={{ display: "flex", gap: 5, marginTop: 12, justifyContent: "center" }}>
-                            {[0, 1, 2].map(i => <div key={i} style={{ width: 6, height: 6, borderRadius: "50%", background: "#c0392b", animation: "bounce 0.8s infinite", animationDelay: `${i * 0.15}s` }} />)}
-                        </div>
-                    </div>
-                </div>
-            )}
+            {/* BETTING CLOSED OVERLAY REMOVED AS REQUESTED */}
 
             {/* ── HISTORY PANEL (SLIDE-OUT) ── */}
             <div className={`fixed top-0 right-0 h-full w-80 bg-[#0a0a0f] border-l border-white/10 z-[100] transform transition-transform duration-300 ease-in-out ${isHistoryOpen ? "translate-x-0" : "translate-x-full"}`} style={{ boxShadow: "-10px 0 30px rgba(0,0,0,0.8)" }}>

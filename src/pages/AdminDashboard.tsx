@@ -167,6 +167,7 @@ const AdminDashboard = () => {
   // ── Realtime: Presence (Player Count tracking) ──
   const [roomPresence, setRoomPresence] = useState<Record<string, string[]>>({});
   const [viewPlayersRoomId, setViewPlayersRoomId] = useState<string | null>(null);
+  const [roomVolumes, setRoomVolumes] = useState<Record<string, number>>({});
   
   useEffect(() => {
     const channel = supabase.channel('global-presence');
@@ -200,6 +201,39 @@ const AdminDashboard = () => {
   }, []);
 
   useEffect(() => { fetchUsers(); }, [fetchUsers]);
+
+  // ── Fetch bet volumes per room ──
+  const fetchRoomVolumes = useCallback(async () => {
+    const { data, error } = await supabase
+      .from("bets" as any)
+      .select("room_id, amount")
+      .eq("status", "PLACED");
+    
+    if (error) {
+      console.error("Error fetching bet volumes:", error.message);
+      return;
+    }
+
+    const volumes: Record<string, number> = {};
+    if (data) {
+      data.forEach((bet: any) => {
+        volumes[bet.room_id] = (volumes[bet.room_id] || 0) + Number(bet.amount);
+      });
+    }
+    setRoomVolumes(volumes);
+  }, []);
+
+  useEffect(() => {
+    fetchRoomVolumes();
+    
+    const channel = supabase.channel('admin-bet-volumes')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'bets' }, () => {
+        fetchRoomVolumes();
+      })
+      .subscribe();
+      
+    return () => { supabase.removeChannel(channel); };
+  }, [fetchRoomVolumes]);
 
   useEffect(() => {
     let result = users;
@@ -646,8 +680,8 @@ const AdminDashboard = () => {
               <table className="w-full">
                 <thead>
                   <tr className="bg-white/5 border-b border-white/10">
-                    {["Room", "Min Bet", "Max Bet", "Stream URL", "Players", "Status", "Control"].map((h, i) => (
-                      <th key={h} className={`py-4 px-6 text-[11px] font-black uppercase tracking-widest text-white/40 ${i === 6 ? "text-right" : "text-left"}`}>{h}</th>
+                    {["Room", "Min Bet", "Max Bet", "Stream URL", "Players", "Volume", "Status", "Control"].map((h, i) => (
+                      <th key={h} className={`py-4 px-6 text-[11px] font-black uppercase tracking-widest text-white/40 ${i === 7 ? "text-right" : "text-left"}`}>{h}</th>
                     ))}
                   </tr>
                 </thead>
@@ -683,6 +717,12 @@ const AdminDashboard = () => {
                           <Users className="w-3.5 h-3.5" />
                           <span className="font-black text-xs">{(roomPresence[room.id] || []).length}</span>
                         </button>
+                      </td>
+                      <td className="py-4 px-6">
+                        <div className="flex items-center gap-1.5 bg-amber-500/10 text-amber-400 px-3 py-1.5 rounded-lg border border-amber-500/20 w-fit">
+                          <Coins className="w-3.5 h-3.5" />
+                          <span className="font-black text-xs">₹{(roomVolumes[room.id] || 0).toLocaleString()}</span>
+                        </div>
                       </td>
                       <td className="py-4 px-6">{roomStatusBadge(room.status)}</td>
                       <td className="py-4 px-6">
