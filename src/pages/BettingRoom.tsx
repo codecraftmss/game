@@ -262,6 +262,30 @@ const BettingRoom = () => {
         };
     }, [roomId]);
 
+    // ── Global Presence for Admin Tracking ──
+    useEffect(() => {
+        let presenceChannel: any;
+        const setupPresence = async () => {
+            const { data: { user } } = await supabase.auth.getUser();
+            if (!user) return;
+            
+            presenceChannel = supabase.channel('global-presence', {
+                config: { presence: { key: user.id } }
+            });
+            
+            presenceChannel.subscribe(async (status: string) => {
+                if (status === 'SUBSCRIBED') {
+                    await presenceChannel.track({ room_id: roomId, user_id: user.id });
+                }
+            });
+        };
+        setupPresence();
+        
+        return () => { 
+            if (presenceChannel) supabase.removeChannel(presenceChannel); 
+        };
+    }, [roomId]);
+
     // ── Portrait detection ──
     useEffect(() => {
         const check = () => setIsPortrait(window.innerHeight > window.innerWidth);

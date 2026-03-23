@@ -164,6 +164,34 @@ const AdminDashboard = () => {
     return () => { supabase.removeChannel(ch); };
   }, []);
 
+  // ── Realtime: Presence (Player Count tracking) ──
+  const [roomPresence, setRoomPresence] = useState<Record<string, string[]>>({});
+  const [viewPlayersRoomId, setViewPlayersRoomId] = useState<string | null>(null);
+  
+  useEffect(() => {
+    const channel = supabase.channel('global-presence');
+    
+    channel.on('presence', { event: 'sync' }, () => {
+      const state = channel.presenceState();
+      const counts: Record<string, string[]> = {};
+      
+      for (const id in state) {
+        const presences = state[id] as any[];
+        if (presences.length > 0) {
+          const rId = presences[0].room_id;
+          const uId = presences[0].user_id;
+          if (rId && uId) {
+            if (!counts[rId]) counts[rId] = [];
+            counts[rId].push(uId);
+          }
+        }
+      }
+      setRoomPresence(counts);
+    });
+    
+    channel.subscribe();
+    return () => { supabase.removeChannel(channel); };
+  }, []);
 
   // ── Fetch users ──
   const fetchUsers = useCallback(async () => {
@@ -618,8 +646,8 @@ const AdminDashboard = () => {
               <table className="w-full">
                 <thead>
                   <tr className="bg-white/5 border-b border-white/10">
-                    {["Room", "Min Bet", "Max Bet", "Stream URL", "Status", "Control"].map((h, i) => (
-                      <th key={h} className={`py-4 px-6 text-[11px] font-black uppercase tracking-widest text-white/40 ${i === 5 ? "text-right" : "text-left"}`}>{h}</th>
+                    {["Room", "Min Bet", "Max Bet", "Stream URL", "Players", "Status", "Control"].map((h, i) => (
+                      <th key={h} className={`py-4 px-6 text-[11px] font-black uppercase tracking-widest text-white/40 ${i === 6 ? "text-right" : "text-left"}`}>{h}</th>
                     ))}
                   </tr>
                 </thead>
@@ -646,6 +674,15 @@ const AdminDashboard = () => {
                             disabled={roomActionLoading === `url-${room.id}`}
                           />
                         </div>
+                      </td>
+                      <td className="py-4 px-6">
+                        <button 
+                          onClick={() => setViewPlayersRoomId(room.id)}
+                          className="flex items-center gap-1.5 bg-blue-500/10 text-blue-400 px-3 py-1.5 rounded-lg border border-blue-500/20 w-fit hover:bg-blue-500/20 hover:scale-105 transition-all text-left"
+                        >
+                          <Users className="w-3.5 h-3.5" />
+                          <span className="font-black text-xs">{(roomPresence[room.id] || []).length}</span>
+                        </button>
                       </td>
                       <td className="py-4 px-6">{roomStatusBadge(room.status)}</td>
                       <td className="py-4 px-6">
@@ -809,6 +846,58 @@ const AdminDashboard = () => {
                 style={{ background: confirmModal.outcome === "ANDAR" ? "linear-gradient(135deg,#c0392b,#7b241c)" : "linear-gradient(135deg,#1a3a4a,#0d2233)" }}>
                 ✓ Confirm {confirmModal.outcome}
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── VIEW PLAYERS MODAL ── */}
+      {viewPlayersRoomId && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm"
+             onClick={() => setViewPlayersRoomId(null)}>
+          <div className="rounded-2xl p-6 max-w-sm w-full mx-4" 
+               style={{ background: "#12121f", border: "1px solid rgba(255,255,255,0.12)", boxShadow: "0 25px 60px rgba(0,0,0,0.7)" }}
+               onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between mb-6">
+              <div className="flex items-center gap-3">
+                <div className="p-2 rounded-xl bg-blue-500/10 border border-blue-500/20">
+                  <Users className="w-4 h-4 text-blue-400" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-black text-white uppercase tracking-widest">Active Players</h3>
+                  <div className="text-[10px] text-white/40 uppercase tracking-widest">{rooms.find(r => r.id === viewPlayersRoomId)?.name}</div>
+                </div>
+              </div>
+              <button onClick={() => setViewPlayersRoomId(null)} className="text-white/40 hover:text-white transition-colors bg-white/5 p-2 rounded-xl border border-white/5 hover:bg-white/10">✕</button>
+            </div>
+            
+            <div className="space-y-3 max-h-[300px] overflow-y-auto pr-2 scrollbar-thin scrollbar-thumb-white/10">
+              {(() => {
+                const activeIds = roomPresence[viewPlayersRoomId] || [];
+                if (activeIds.length === 0) {
+                  return (
+                    <div className="text-center py-10 border border-dashed border-white/10 rounded-2xl bg-black/20">
+                      <div className="text-white/20 text-xs font-black uppercase tracking-[0.2em]">Room is Empty</div>
+                    </div>
+                  );
+                }
+                
+                // Map active presence IDs to actual user profiles stored in `users` state
+                const activeUsers = activeIds.map(uid => users.find(u => u.id === uid) || { id: uid, name: "Unknown User", phone: "—", status: "PENDING", created_at: "" });
+                
+                return activeUsers.map(u => (
+                  <div key={u.id} className="flex items-center justify-between p-3.5 rounded-xl bg-white/5 border border-white/10 hover:border-white/20 transition-all hover:bg-white/10 group cursor-default">
+                    <div>
+                      <div className="font-black text-xs text-white uppercase tracking-wider group-hover:text-amber-400 transition-colors">{u.name || "UNNAMED"}</div>
+                      <div className="text-[9px] text-white/40 font-mono mt-0.5">{u.id.slice(0, 12)}...</div>
+                    </div>
+                    <div className="text-right">
+                      <div className="text-[10px] font-black text-white/60">{u.phone || "—"}</div>
+                      <div className="text-[8px] uppercase tracking-widest font-black text-emerald-400/70 mt-0.5">Watching</div>
+                    </div>
+                  </div>
+                ));
+              })()}
             </div>
           </div>
         </div>
