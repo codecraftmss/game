@@ -273,10 +273,20 @@ const AdminDashboard = () => {
   };
 
   // ── OPEN / CLOSE betting ──
-  const handleBettingToggle = async (status: "OPEN" | "CLOSED") => {
+  const handleBettingToggle = useCallback(async (status: "OPEN" | "CLOSED") => {
     await updateGameState({ betting_status: status, result: null });
     toast({ title: status === "OPEN" ? "✅ Betting Opened" : "🔒 Betting Closed", description: `${rooms.find(r => r.id === selectedRoomId)?.name} — ${status}` });
-  };
+  }, [selectedRoomId, rooms, updateGameState, toast]);
+
+  // ── Auto-close betting timer (15s) ──
+  useEffect(() => {
+    if (gameState?.betting_status === "OPEN") {
+      const timer = setTimeout(() => {
+        handleBettingToggle("CLOSED");
+      }, 15000);
+      return () => clearTimeout(timer);
+    }
+  }, [gameState?.betting_status, handleBettingToggle]);
 
   // ── Phase toggle ──
   const handlePhaseToggle = async (phase: "1ST_BET" | "2ND_BET") => {
