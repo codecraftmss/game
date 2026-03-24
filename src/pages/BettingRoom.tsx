@@ -195,7 +195,7 @@ const BettingRoom = () => {
                         setShowResultPopup(true);
                         setTimeout(() => setShowResultPopup(false), 5000);
                     }
-                    if (newState.betting_status === "OPEN" && prev?.betting_status === "CLOSED") {
+                    if (newState.current_round !== prev?.current_round) {
                         setBetHistory([]); betHistoryRef.current = [];
                         setPlacedBetsCount(0);
                         setLocalResult(null); setShowResultPopup(false);
@@ -238,7 +238,7 @@ const BettingRoom = () => {
                     setShowResultPopup(true);
                     setTimeout(() => setShowResultPopup(false), 5000);
                 }
-                if (incoming.betting_status === "OPEN" && prev?.betting_status === "CLOSED") {
+                if (incoming.current_round !== prev?.current_round) {
                     setBetHistory([]); betHistoryRef.current = [];
                     setPlacedBetsCount(0);
                     setLocalResult(null); setShowResultPopup(false);
@@ -422,8 +422,12 @@ const BettingRoom = () => {
         if (placedSomething) {
             setPlacedBetsCount(betHistory.length);
             
-            if (gameState?.betting_phase === "1ST_BET") setFirstBetTotal(totalBet);
-            else if (gameState?.betting_phase === "2ND_BET") setSecondBetTotal(totalBet);
+            if (gameState?.betting_phase === "1ST_BET") {
+                setFirstBetTotal(totalBet);
+            } else if (gameState?.betting_phase === "2ND_BET") {
+                // Second bet total is the additional amount added since phase 1
+                setSecondBetTotal(totalBet - firstBetTotal);
+            }
     
             if (isHistoryOpen) fetchUserBets();
         }
