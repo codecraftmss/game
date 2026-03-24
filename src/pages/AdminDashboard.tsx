@@ -120,7 +120,10 @@ const AdminDashboard = () => {
     const { data } = await supabase.from("rooms").select("id,name,label,min_bet,max_bet,status,stream_url").order("created_at");
     if (data && data.length > 0) {
       setRooms(data as Room[]);
-      if (!selectedRoomId) setSelectedRoomId(data[0].id);
+      if (!selectedRoomId) {
+        const royalFlush = data.find((r: Room) => r.name.toUpperCase().includes("ROYAL FLUSH"));
+        setSelectedRoomId(royalFlush ? royalFlush.id : data[0].id);
+      }
     }
   }, [selectedRoomId]);
 
