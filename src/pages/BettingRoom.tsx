@@ -198,7 +198,6 @@ const BettingRoom = () => {
                     if (newState.current_round !== prev?.current_round) {
                         setBetHistory([]); betHistoryRef.current = [];
                         setPlacedBetsCount(0);
-                        setLocalResult(null); setShowResultPopup(false);
                         setFirstBetTotal(0); setSecondBetTotal(0);
                     }
                     setGameState(newState);
@@ -241,7 +240,6 @@ const BettingRoom = () => {
                 if (incoming.current_round !== prev?.current_round) {
                     setBetHistory([]); betHistoryRef.current = [];
                     setPlacedBetsCount(0);
-                    setLocalResult(null); setShowResultPopup(false);
                     setFirstBetTotal(0); setSecondBetTotal(0);
                 }
                 setGameState(incoming);
