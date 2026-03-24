@@ -54,7 +54,7 @@ const VideoPlayer = ({ streamUrl }: VideoPlayerProps) => {
     }, [streamUrl, youtubeId]);
 
     return (
-        <div className="relative w-full h-full flex items-center justify-center bg-black rounded-xl overflow-hidden">
+        <div className="relative w-full h-full flex items-center justify-center bg-black overflow-hidden">
             {/* LIVE badge */}
             <div className="absolute top-3 left-3 z-10 flex items-center gap-1.5 bg-red-600 text-white text-[11px] font-bold px-2.5 py-1 rounded-full shadow-lg">
                 <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse" />
@@ -67,11 +67,17 @@ const VideoPlayer = ({ streamUrl }: VideoPlayerProps) => {
                     {/* Invisible overlay strictly blocking all interactions */}
                     <div className="absolute inset-0 z-10"></div>
                     <iframe
-                        className="w-full h-full pointer-events-none"
+                        className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 pointer-events-none"
                         src={`https://www.youtube.com/embed/${youtubeId}?autoplay=1&mute=1&controls=0&modestbranding=1&rel=0&playsinline=1`}
                         allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
                         allowFullScreen
-                        style={{ border: "none" }}
+                        style={{ 
+                            border: "none",
+                            width: '100%',
+                            height: '100%',
+                            minWidth: '177.78vh', /* 100 * 16 / 9 */
+                            minHeight: '56.25vw', /* 100 * 9 / 16 */
+                        }}
                     />
                 </div>
             ) : streamUrl ? (
