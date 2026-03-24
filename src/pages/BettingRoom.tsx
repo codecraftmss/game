@@ -553,7 +553,7 @@ const BettingRoom = () => {
                         LIVE
                     </div>
                     <span style={{ color: "#fff", fontSize: 13, fontWeight: 700, letterSpacing: "0.08em" }}>
-                        {roomInfo.name.toUpperCase()} : MIN BET {roomInfo.minBet.toLocaleString()}
+                        {roomInfo.name.toUpperCase()} : MIN BET 500
                     </span>
                 </div>
 
