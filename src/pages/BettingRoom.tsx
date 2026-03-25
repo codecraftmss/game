@@ -63,6 +63,7 @@ const BettingRoom = () => {
     const [showBettingClosedBanner, setShowBettingClosedBanner] = useState(false);
     const [showBettingOpenBanner, setShowBettingOpenBanner] = useState(false);
     const [showPhaseBanner, setShowPhaseBanner] = useState<"1ST" | "2ND" | null>(null);
+    const [roundResultStatus, setRoundResultStatus] = useState<'WON' | 'LOST' | 'NONE' | null>(null);
 
     const fetchUserBets = async () => {
         const { data: { user } } = await supabase.auth.getUser();
@@ -215,10 +216,23 @@ const BettingRoom = () => {
                     const newState = payload.new as GameState;
                     const prev = gameStateRef.current;
 
+                    // ── Capture win/loss status BEFORE clearing history ──
+                    let status: "WON" | "LOST" | "NONE" = "NONE";
+                    const sideWon = newState.result?.toLowerCase();
+                    const currentBets = betHistoryRef.current;
+                    if (sideWon && currentBets.length > 0) {
+                        const hasWon = currentBets.some(b => b.side === sideWon);
+                        status = hasWon ? "WON" : "LOST";
+                    }
+
                     if (newState.result && newState.result !== prev?.result) {
                         setLocalResult(newState.result);
+                        setRoundResultStatus(status);
                         setShowResultPopup(true);
-                        setTimeout(() => setShowResultPopup(false), 5000);
+                        setTimeout(() => {
+                            setShowResultPopup(false);
+                            setRoundResultStatus(null);
+                        }, 5000);
                     }
                     if (newState.current_round !== prev?.current_round) {
                         setBetHistory([]); betHistoryRef.current = [];
@@ -258,17 +272,30 @@ const BettingRoom = () => {
                 incoming.current_round !== prev?.current_round ||
                 incoming.timer_seconds !== prev?.timer_seconds
             ) {
-                if (incoming.result && incoming.result !== prev?.result) {
-                    setLocalResult(incoming.result);
-                    setShowResultPopup(true);
-                    setTimeout(() => setShowResultPopup(false), 5000);
-                }
-                if (incoming.current_round !== prev?.current_round) {
-                    setBetHistory([]); betHistoryRef.current = [];
-                    setPlacedBetsCount(0);
-                    setFirstBetTotal(0); setSecondBetTotal(0);
-                }
-                setGameState(incoming);
+            // ── Determine win status BEFORE clearing history ──
+            let status: "WON" | "LOST" | "NONE" = "NONE";
+            const sideWon = incoming.result?.toLowerCase();
+            const currentBets = betHistoryRef.current;
+            if (sideWon && currentBets.length > 0) {
+                const hasWon = currentBets.some(b => b.side === sideWon);
+                status = hasWon ? "WON" : "LOST";
+            }
+
+            if (incoming.result && incoming.result !== prev?.result) {
+                setLocalResult(incoming.result);
+                setRoundResultStatus(status);
+                setShowResultPopup(true);
+                setTimeout(() => {
+                    setShowResultPopup(false);
+                    setRoundResultStatus(null);
+                }, 5000);
+            }
+            if (incoming.current_round !== prev?.current_round) {
+                setBetHistory([]); betHistoryRef.current = [];
+                setPlacedBetsCount(0);
+                setFirstBetTotal(0); setSecondBetTotal(0);
+            }
+            setGameState(incoming);
             }
         }, 5000); // poll every 5 seconds
         return () => clearInterval(poll);
@@ -951,20 +978,22 @@ const BettingRoom = () => {
                 <div style={{ position: "absolute", inset: 0, zIndex: 40, display: "flex", alignItems: "center", justifyContent: "center", background: "rgba(0,0,0,0.65)", cursor: "pointer" }}
                     onClick={() => setShowResultPopup(false)}>
                     <div className="br-result-overlay" style={{
-                        background: (localResult === "ANDAR" && andarTotal > 0) || (localResult === "BAHAR" && baharTotal > 0)
-                            ? "linear-gradient(135deg, #1a5c2a, #27ae60)"
-                            : "linear-gradient(135deg, #5c1a1a, #c0392b)"
+                        background: roundResultStatus === "WON"
+                            ? "linear-gradient(135deg, #1a5c2a, #27ae60)" // Winner Green
+                            : roundResultStatus === "LOST"
+                                ? "linear-gradient(135deg, #5c1a1a, #c0392b)" // Loser Red
+                                : "linear-gradient(135deg, #1a3a4a, #2980b9)" // Default Blue (No bet)
                     }}>
                         <div style={{ fontSize: 44, marginBottom: 8 }}>
-                            {(localResult === "ANDAR" && andarTotal > 0) || (localResult === "BAHAR" && baharTotal > 0) ? "🏆" : "😔"}
+                            {roundResultStatus === "WON" ? "🏆" : roundResultStatus === "LOST" ? "😔" : "🏁"}
                         </div>
                         <div style={{ color: "#fff", fontWeight: 900, fontSize: 22, letterSpacing: "0.1em", textTransform: "uppercase", marginBottom: 4 }}>
-                            {placedBetsCount > 0
-                                ? ((localResult === "ANDAR" && andarTotal > 0) || (localResult === "BAHAR" && baharTotal > 0) ? "You Win!" : "Better Luck!")
-                                : `${localResult} Wins!`}
+                            {roundResultStatus === "WON" ? "You Win!" : roundResultStatus === "LOST" ? "Better Luck!" : `${localResult} Wins!`}
                         </div>
-                        <div style={{ color: "rgba(255,255,255,0.55)", fontSize: 13 }}>{localResult.toLowerCase()} wins this round</div>
-                        <div style={{ color: "rgba(255,255,255,0.3)", fontSize: 11, marginTop: 14 }}>Tap to dismiss</div>
+                        <div style={{ color: "rgba(255,255,255,0.75)", fontSize: 13, fontWeight: 600 }}>
+                            {localResult.toLowerCase()} wins this round
+                        </div>
+                        <div style={{ color: "rgba(255,255,255,0.4)", fontSize: 11, marginTop: 14, letterSpacing: "0.05em" }}>Tap to dismiss</div>
                     </div>
                 </div>
             )}
