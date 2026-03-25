@@ -485,17 +485,12 @@ const BettingRoom = () => {
     };
 
     // Parse joker card
-    const SUIT_KEY_MAP: Record<string, string> = { "♥": "hearts", "♦": "diamonds", "♣": "clubs", "♠": "spades" };
-    const FACE_IMG_MAP: Record<string, string> = { A: "ace", J: "jack", Q: "queen", K: "king" };
     const jokerCard = gameState?.target_card ? (() => {
         const sym = gameState.target_card as string;
         const suitSym = sym.match(/[♥♦♣♠]/)?.[0] || "";
         const val = sym.replace(suitSym, "");
         const isRed = suitSym === "♥" || suitSym === "♦";
-        const suitKey = SUIT_KEY_MAP[suitSym] || "";
-        const facePrefix = FACE_IMG_MAP[val];
-        const faceImg = facePrefix && suitKey ? `/${facePrefix}_${suitKey}.png` : null;
-        return { display: sym, val, suitSym, color: isRed ? "#e74c3c" : "#1a1a2e", faceImg };
+        return { display: sym, val, suitSym, color: isRed ? "#e74c3c" : "#1a1a2e" };
     })() : null;
 
     if (roomLoading) {
@@ -866,14 +861,10 @@ const BettingRoom = () => {
                                     boxShadow: "0 0 12px rgba(212,160,23,0.45)",
                                     width: 44, height: 62, overflow: "hidden",
                                 }}>
-                                    {jokerCard.faceImg ? (
-                                        <img src={jokerCard.faceImg} alt={jokerCard.display} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
-                                    ) : (
-                                        <div style={{ width: "100%", height: "100%", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center" }}>
-                                            <span style={{ fontSize: 14, fontWeight: 900, color: jokerCard.color, lineHeight: 1 }}>{jokerCard.val}</span>
-                                            <span style={{ fontSize: 20, color: jokerCard.color, lineHeight: 1 }}>{jokerCard.suitSym}</span>
-                                        </div>
-                                    )}
+                                    <div style={{ width: "100%", height: "100%", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center" }}>
+                                        <span style={{ fontSize: 14, fontWeight: 900, color: jokerCard.color, lineHeight: 1 }}>{jokerCard.val}</span>
+                                        <span style={{ fontSize: 20, color: jokerCard.color, lineHeight: 1 }}>{jokerCard.suitSym}</span>
+                                    </div>
                                 </div>
                             ) : (
                                 <div style={{ width: 44, height: 62, border: "1px solid rgba(255,255,255,0.2)", borderRadius: 4, background: "rgba(255,255,255,0.05)", display: "flex", alignItems: "center", justifyContent: "center" }}>

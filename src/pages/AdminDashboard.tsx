@@ -53,13 +53,7 @@ const SUITS = [
 ];
 const VALUES = ["A", "2", "3", "4", "5", "6", "7", "8", "9", "10", "J", "Q", "K"];
 
-// ─── Face Card Image Helper ───────────────────────────────────────
-const FACE_VALUES: Record<string, string> = { A: "ace", J: "jack", Q: "queen", K: "king" };
-const getFaceCardImage = (val: string, suitKey: string): string | null => {
-  const facePrefix = FACE_VALUES[val];
-  if (!facePrefix) return null;
-  return `/${facePrefix}_${suitKey}.png`;
-};
+
 
 // ─── Main Component ──────────────────────────────────────────────
 const AdminDashboard = () => {
@@ -247,7 +241,7 @@ const AdminDashboard = () => {
   }, [users, filter, searchQuery]);
 
   // ── Game state update helper ──
-   const updateGameState = async (patch: Partial<GameState>) => {
+  const updateGameState = async (patch: Partial<GameState>) => {
     if (!selectedRoomId) return;
 
     // Create full payload for upsert in case row doesn't exist
@@ -271,8 +265,8 @@ const AdminDashboard = () => {
 
     // Use upsert to update DB
     const { error } = await supabase.from("game_state").upsert(payload, { onConflict: 'room_id' });
-    if (error) { 
-      toast({ title: "Sync Error", description: error.message, variant: "destructive" }); 
+    if (error) {
+      toast({ title: "Sync Error", description: error.message, variant: "destructive" });
       // Rollback or refetch if needed (omitted for simplicity as polling will recover)
     }
   };
@@ -302,7 +296,7 @@ const AdminDashboard = () => {
     const interval = setInterval(() => {
       const now = Date.now();
       const remaining = Math.max(0, Math.ceil((localTimerEnd - now) / 1000));
-      
+
       if (remaining <= 0) {
         handleBettingToggle("CLOSED");
         setLocalTimerEnd(null);
@@ -576,7 +570,7 @@ const AdminDashboard = () => {
               </div>
 
               <div className="flex-1 flex flex-col gap-3">
-                <button 
+                <button
                   onClick={() => handleBettingToggle("OPEN")}
                   disabled={gameState?.betting_status === "OPEN" && (localTimerEnd === null || Date.now() < localTimerEnd)}
                   className="flex-1 rounded-2xl text-sm font-black uppercase tracking-[0.1em] transition-all disabled:opacity-30 flex flex-col items-center justify-center gap-1 shadow-2xl active:scale-95 border-2 group"
@@ -584,7 +578,7 @@ const AdminDashboard = () => {
                   <div className="text-[9px] opacity-40 font-medium tracking-[0.3em]">MANUAL</div>
                   ✦ OPEN BETTING
                 </button>
-                <button 
+                <button
                   onClick={() => handleBettingToggle("CLOSED")}
                   disabled={gameState?.betting_status === "CLOSED" || (localTimerEnd !== null && Date.now() >= localTimerEnd)}
                   className="flex-1 rounded-2xl text-sm font-black uppercase tracking-[0.1em] transition-all disabled:opacity-30 flex flex-col items-center justify-center gap-1 shadow-2xl active:scale-95 border-2 group"
@@ -630,10 +624,6 @@ const AdminDashboard = () => {
                       {(() => {
                         const suit = SUITS.find(s => selectedCard.includes(s.sym));
                         const val = selectedCard.replace(suit?.sym || "", "");
-                        const faceImg = suit ? getFaceCardImage(val, suit.key) : null;
-                        if (faceImg) {
-                          return <img src={faceImg} alt={selectedCard} className="w-full h-full object-cover" />;
-                        }
                         return <>
                           <div className="absolute top-2 left-2 font-black text-xl leading-none" style={{ color: suit?.color }}>{val}</div>
                           <div className="text-5xl drop-shadow-md select-none" style={{ color: suit?.color }}>{suit?.sym}</div>
@@ -680,21 +670,18 @@ const AdminDashboard = () => {
                       {VALUES.map(val => {
                         const card = `${val}${suit.sym}`;
                         const isSelected = selectedCard === card;
-                        const faceImg = getFaceCardImage(val, suit.key);
                         return (
                           <button key={card} onClick={() => handleCardSelect(card)}
                             className="relative aspect-[3/4] flex items-center justify-center rounded-lg text-xs font-black transition-all duration-300 border hover:border-white/30 overflow-hidden"
                             style={{
-                              background: faceImg ? "white" : (isSelected ? "white" : "rgba(255,255,255,0.02)"),
+                              background: isSelected ? "white" : "rgba(255,255,255,0.02)",
                               borderColor: isSelected ? "#fbbf24" : "rgba(255,255,255,0.08)",
                               color: isSelected ? suit.color : (suit.color === "#e74c3c" ? "#f87171" : "rgba(255,255,255,0.3)"),
                               boxShadow: isSelected ? "0 0 20px rgba(251,191,36,0.6), 0 3px 10px rgba(0,0,0,0.5)" : "none",
                               transform: isSelected ? "scale(1.15) translateY(-1px)" : "none",
                               zIndex: isSelected ? 30 : 1,
                             }}>
-                            {faceImg ? (
-                              <img src={faceImg} alt={card} className="w-full h-full object-cover rounded-lg" />
-                            ) : val}
+                            {val}
                             {isSelected && <div className="absolute inset-0 bg-amber-400/20 rounded-lg animate-pulse" />}
                           </button>
                         );
