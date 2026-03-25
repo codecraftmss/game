@@ -22,6 +22,7 @@ type GameState = {
     result: "ANDAR" | "BAHAR" | null;
     target_card: string | null;
     current_round: number;
+    timer_seconds: number;
     is_live: boolean;
 };
 
@@ -38,6 +39,7 @@ const BettingRoom = () => {
     gameStateRef.current = gameState;
 
     const [balance, setBalance] = useState(0);
+    const [displayTimer, setDisplayTimer] = useState<number>(0);
     const balanceRef = useRef(0);
     const [selectedChip, setSelectedChip] = useState<number>(500);
     const [betHistory, setBetHistory] = useState<BetEntry[]>([]);
@@ -84,7 +86,26 @@ const BettingRoom = () => {
     const andarTotal = andarBets.reduce((s, v) => s + v.amount, 0);
     const baharTotal = baharBets.reduce((s, v) => s + v.amount, 0);
     const totalBet = andarTotal + baharTotal;
-    const bettingOpen = gameState?.betting_status === "OPEN";
+    const isBettingWindowOpen = gameState?.betting_status === "OPEN";
+    const bettingOpen = isBettingWindowOpen && displayTimer > 0;
+
+    // ── Local Smooth Timer Interpolation ──
+    useEffect(() => {
+        if (gameState?.timer_seconds !== undefined) {
+            setDisplayTimer(gameState.timer_seconds);
+        }
+    }, [gameState?.timer_seconds]);
+
+    useEffect(() => {
+        if (gameState?.betting_status === "OPEN") {
+            const interval = setInterval(() => {
+                setDisplayTimer(prev => (prev > 0 ? prev - 1 : 0));
+            }, 1000);
+            return () => clearInterval(interval);
+        } else {
+            setDisplayTimer(0);
+        }
+    }, [gameState?.betting_status]);
 
     // ── Handle Betting Status & Phase Banners ──
     useEffect(() => {
@@ -230,7 +251,8 @@ const BettingRoom = () => {
                 incoming.betting_phase !== prev?.betting_phase ||
                 incoming.result !== prev?.result ||
                 incoming.target_card !== prev?.target_card ||
-                incoming.current_round !== prev?.current_round
+                incoming.current_round !== prev?.current_round ||
+                incoming.timer_seconds !== prev?.timer_seconds
             ) {
                 if (incoming.result && incoming.result !== prev?.result) {
                     setLocalResult(incoming.result);
@@ -473,7 +495,7 @@ const BettingRoom = () => {
                 background: "linear-gradient(to bottom, rgba(0,0,0,0.85), transparent)",
             }}>
                 {/* ── BETTING STATUS TOP BANNERS ── */}
-                {showBettingClosedBanner && (
+                {(showBettingClosedBanner || (isBettingWindowOpen && displayTimer === 0)) && (
                     <div style={{
                         position: "absolute", top: 60, left: "50%", transform: "translateX(-50%)",
                         zIndex: 100, pointerEvents: "none",
@@ -494,7 +516,7 @@ const BettingRoom = () => {
                     </div>
                 )}
 
-                {showBettingOpenBanner && (
+                {showBettingOpenBanner && displayTimer > 0 && (
                     <div style={{
                         position: "absolute", top: 60, left: "50%", transform: "translateX(-50%)",
                         zIndex: 100, pointerEvents: "none",
@@ -555,8 +577,25 @@ const BettingRoom = () => {
                     </span>
                 </div>
 
-                {/* Right: Icons */}
+                {/* Right: Timer + Icons */}
                 <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
+                    {/* Countdown Timer */}
+                    {bettingOpen && displayTimer > 0 && (
+                        <div style={{
+                            display: "flex", alignItems: "center", gap: 6,
+                            background: displayTimer <= 5 ? "rgba(192, 57, 43, 0.9)" : "rgba(255, 255, 255, 0.1)",
+                            padding: "4px 12px", borderRadius: 8, border: "1px solid rgba(255,255,255,0.15)",
+                            boxShadow: displayTimer <= 5 ? "0 0 15px rgba(192, 57, 43, 0.4)" : "none",
+                            animation: displayTimer <= 5 ? "pulse 1s infinite" : "none",
+                            transition: "all 0.3s ease",
+                        }}>
+                            <span style={{ fontSize: 10, fontWeight: 900, color: "rgba(255,255,255,0.6)", letterSpacing: "0.1em" }}>TIME</span>
+                            <span style={{ fontSize: 18, fontWeight: 900, color: "#fff", minWidth: 24, textAlign: "center", fontVariantNumeric: "tabular-nums" }}>
+                                {displayTimer}
+                            </span>
+                        </div>
+                    )}
+
                     <button onClick={() => setIsHistoryOpen(true)} style={{ background: "none", border: "none", cursor: "pointer", color: "rgba(255,255,255,0.7)", fontSize: 18, display: "flex", alignItems: "center" }} title="History">
                         🕐
                     </button>

@@ -98,6 +98,7 @@ const AdminDashboard = () => {
   // Status bar
   const [sessionSeconds, setSessionSeconds] = useState(0);
   const [latency, setLatency] = useState(12);
+  const [localTimerEnd, setLocalTimerEnd] = useState<number | null>(null);
 
   // ── Session Timer ──
   useEffect(() => {
@@ -171,14 +172,14 @@ const AdminDashboard = () => {
   const [roomPresence, setRoomPresence] = useState<Record<string, string[]>>({});
   const [viewPlayersRoomId, setViewPlayersRoomId] = useState<string | null>(null);
   const [roomVolumes, setRoomVolumes] = useState<Record<string, number>>({});
-  
+
   useEffect(() => {
     const channel = supabase.channel('global-presence');
-    
+
     channel.on('presence', { event: 'sync' }, () => {
       const state = channel.presenceState();
       const counts: Record<string, string[]> = {};
-      
+
       for (const id in state) {
         const presences = state[id] as any[];
         if (presences.length > 0) {
@@ -192,7 +193,7 @@ const AdminDashboard = () => {
       }
       setRoomPresence(counts);
     });
-    
+
     channel.subscribe();
     return () => { supabase.removeChannel(channel); };
   }, []);
@@ -211,7 +212,7 @@ const AdminDashboard = () => {
       .from("bets" as any)
       .select("room_id, amount")
       .eq("status", "PLACED");
-    
+
     if (error) {
       console.error("Error fetching bet volumes:", error.message);
       return;
@@ -228,13 +229,13 @@ const AdminDashboard = () => {
 
   useEffect(() => {
     fetchRoomVolumes();
-    
+
     const channel = supabase.channel('admin-bet-volumes')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'bets' }, () => {
         fetchRoomVolumes();
       })
       .subscribe();
-      
+
     return () => { supabase.removeChannel(channel); };
   }, [fetchRoomVolumes]);
 
@@ -274,19 +275,36 @@ const AdminDashboard = () => {
 
   // ── OPEN / CLOSE betting ──
   const handleBettingToggle = useCallback(async (status: "OPEN" | "CLOSED") => {
-    await updateGameState({ betting_status: status, result: null });
+    const patch: any = { betting_status: status, result: null };
+    if (status === "OPEN") {
+      patch.timer_seconds = 15;
+      setLocalTimerEnd(Date.now() + 15000);
+    } else {
+      setLocalTimerEnd(null);
+    }
+
+    await updateGameState(patch);
     toast({ title: status === "OPEN" ? "✅ Betting Opened" : "🔒 Betting Closed", description: `${rooms.find(r => r.id === selectedRoomId)?.name} — ${status}` });
   }, [selectedRoomId, rooms, updateGameState, toast]);
 
-  // ── Auto-close betting timer (15s) ──
+  // ── Auto-close betting timer (decrements every 1s) ──
   useEffect(() => {
-    if (gameState?.betting_status === "OPEN") {
-      const timer = setTimeout(() => {
+    if (!localTimerEnd) return;
+
+    const interval = setInterval(() => {
+      const remaining = Math.max(0, Math.ceil((localTimerEnd - Date.now()) / 1000));
+
+      if (remaining <= 0) {
         handleBettingToggle("CLOSED");
-      }, 15000);
-      return () => clearTimeout(timer);
-    }
-  }, [gameState?.betting_status, handleBettingToggle]);
+        setLocalTimerEnd(null);
+      } else {
+        // Sync to DB every second
+        updateGameState({ timer_seconds: remaining });
+      }
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, [localTimerEnd, handleBettingToggle, updateGameState]);
 
   // ── Phase toggle ──
   const handlePhaseToggle = async (phase: "1ST_BET" | "2ND_BET") => {
@@ -418,7 +436,7 @@ const AdminDashboard = () => {
             </div>
           </div>
           <div className="flex items-center gap-3">
-            <button 
+            <button
               onClick={() => navigate("/admin/token-management")}
               className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-bold text-amber-500/80 hover:text-amber-400 border border-amber-500/20 hover:border-amber-500/40 transition-all bg-amber-500/5"
             >
@@ -723,7 +741,7 @@ const AdminDashboard = () => {
                         </div>
                       </td>
                       <td className="py-4 px-6">
-                        <button 
+                        <button
                           onClick={() => setViewPlayersRoomId(room.id)}
                           className="flex items-center gap-1.5 bg-blue-500/10 text-blue-400 px-3 py-1.5 rounded-lg border border-blue-500/20 w-fit hover:bg-blue-500/20 hover:scale-105 transition-all text-left"
                         >
@@ -742,11 +760,11 @@ const AdminDashboard = () => {
                         <div className="flex gap-2 justify-end flex-wrap">
                           {ROOM_STATUS_CYCLE.filter(s => s !== room.status).map(s => (
                             <button key={s} disabled={roomActionLoading === room.id} onClick={() => handleRoomStatus(room, s)}
-                               className={`text-[9px] font-black uppercase tracking-widest px-3 py-1.5 rounded-xl border transition-all disabled:opacity-40
+                              className={`text-[9px] font-black uppercase tracking-widest px-3 py-1.5 rounded-xl border transition-all disabled:opacity-40
                                  ${s === "ONLINE" ? "bg-emerald-500/10 border-emerald-500/30 text-emerald-500 hover:bg-emerald-500/20" :
-                                   s === "MAINTENANCE" ? "bg-amber-500/10 border-amber-500/30 text-amber-500 hover:bg-amber-500/20" :
-                                     "bg-white/5 border-white/10 text-white/40 hover:bg-white/10"}`}>
-                               → {s}
+                                  s === "MAINTENANCE" ? "bg-amber-500/10 border-amber-500/30 text-amber-500 hover:bg-amber-500/20" :
+                                    "bg-white/5 border-white/10 text-white/40 hover:bg-white/10"}`}>
+                              → {s}
                             </button>
                           ))}
                         </div>
@@ -907,10 +925,10 @@ const AdminDashboard = () => {
       {/* ── VIEW PLAYERS MODAL ── */}
       {viewPlayersRoomId && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm"
-             onClick={() => setViewPlayersRoomId(null)}>
-          <div className="rounded-2xl p-6 max-w-sm w-full mx-4" 
-               style={{ background: "#12121f", border: "1px solid rgba(255,255,255,0.12)", boxShadow: "0 25px 60px rgba(0,0,0,0.7)" }}
-               onClick={e => e.stopPropagation()}>
+          onClick={() => setViewPlayersRoomId(null)}>
+          <div className="rounded-2xl p-6 max-w-sm w-full mx-4"
+            style={{ background: "#12121f", border: "1px solid rgba(255,255,255,0.12)", boxShadow: "0 25px 60px rgba(0,0,0,0.7)" }}
+            onClick={e => e.stopPropagation()}>
             <div className="flex items-center justify-between mb-6">
               <div className="flex items-center gap-3">
                 <div className="p-2 rounded-xl bg-blue-500/10 border border-blue-500/20">
@@ -923,7 +941,7 @@ const AdminDashboard = () => {
               </div>
               <button onClick={() => setViewPlayersRoomId(null)} className="text-white/40 hover:text-white transition-colors bg-white/5 p-2 rounded-xl border border-white/5 hover:bg-white/10">✕</button>
             </div>
-            
+
             <div className="space-y-3 max-h-[300px] overflow-y-auto pr-2 scrollbar-thin scrollbar-thumb-white/10">
               {(() => {
                 const activeIds = roomPresence[viewPlayersRoomId] || [];
@@ -934,10 +952,10 @@ const AdminDashboard = () => {
                     </div>
                   );
                 }
-                
+
                 // Map active presence IDs to actual user profiles stored in `users` state
                 const activeUsers = activeIds.map(uid => users.find(u => u.id === uid) || { id: uid, name: "Unknown User", phone: "—", status: "PENDING", created_at: "" });
-                
+
                 return activeUsers.map(u => (
                   <div key={u.id} className="flex items-center justify-between p-3.5 rounded-xl bg-white/5 border border-white/10 hover:border-white/20 transition-all hover:bg-white/10 group cursor-default">
                     <div>
