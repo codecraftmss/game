@@ -861,9 +861,10 @@ const BettingRoom = () => {
                                     boxShadow: "0 0 12px rgba(212,160,23,0.45)",
                                     width: 44, height: 62, overflow: "hidden",
                                 }}>
-                                    <div style={{ width: "100%", height: "100%", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center" }}>
-                                        <span style={{ fontSize: 14, fontWeight: 900, color: jokerCard.color, lineHeight: 1 }}>{jokerCard.val}</span>
-                                        <span style={{ fontSize: 20, color: jokerCard.color, lineHeight: 1 }}>{jokerCard.suitSym}</span>
+                                    <div style={{ width: "100%", height: "100%", position: "relative", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                                        <span style={{ position: "absolute", top: 3, left: 4, fontSize: 11, fontWeight: 900, color: jokerCard.color, lineHeight: 1 }}>{jokerCard.val}</span>
+                                        <span style={{ fontSize: 22, color: jokerCard.color, lineHeight: 1, filter: "drop-shadow(0 1px 2px rgba(0,0,0,0.15))" }}>{jokerCard.suitSym}</span>
+                                        <span style={{ position: "absolute", bottom: 3, right: 4, fontSize: 11, fontWeight: 900, color: jokerCard.color, lineHeight: 1, transform: "rotate(180deg)" }}>{jokerCard.val}</span>
                                     </div>
                                 </div>
                             ) : (
