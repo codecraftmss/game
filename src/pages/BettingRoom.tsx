@@ -98,6 +98,10 @@ const BettingRoom = () => {
 
     useEffect(() => {
         if (gameState?.betting_status === "OPEN") {
+            // Force reset displayTimer to server value when status becomes OPEN
+            if (gameState.timer_seconds !== undefined) {
+                setDisplayTimer(gameState.timer_seconds);
+            }
             const interval = setInterval(() => {
                 setDisplayTimer(prev => (prev > 0 ? prev - 1 : 0));
             }, 1000);
@@ -105,7 +109,7 @@ const BettingRoom = () => {
         } else {
             setDisplayTimer(0);
         }
-    }, [gameState?.betting_status]);
+    }, [gameState?.betting_status, gameState?.timer_seconds === 15]); // Extra trigger on 15 to ensure reset
 
     // ── Handle Betting Status & Phase Banners ──
     useEffect(() => {

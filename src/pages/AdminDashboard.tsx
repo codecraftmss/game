@@ -247,7 +247,7 @@ const AdminDashboard = () => {
   }, [users, filter, searchQuery]);
 
   // ── Game state update helper ──
-  const updateGameState = async (patch: Partial<GameState>) => {
+   const updateGameState = async (patch: Partial<GameState>) => {
     if (!selectedRoomId) return;
 
     // Create full payload for upsert in case row doesn't exist
@@ -266,11 +266,15 @@ const AdminDashboard = () => {
       updated_at: new Date().toISOString()
     };
 
-    // Use upsert to create if missing
-    const { error } = await supabase.from("game_state").upsert(payload, { onConflict: 'room_id' });
-    if (error) { toast({ title: "Error", description: error.message, variant: "destructive" }); return; }
-
+    // [OPTIMISTIC] Update local state immediately
     setGameState(prev => prev ? { ...prev, ...patch } : payload as GameState);
+
+    // Use upsert to update DB
+    const { error } = await supabase.from("game_state").upsert(payload, { onConflict: 'room_id' });
+    if (error) { 
+      toast({ title: "Sync Error", description: error.message, variant: "destructive" }); 
+      // Rollback or refetch if needed (omitted for simplicity as polling will recover)
+    }
   };
 
   // ── OPEN / CLOSE betting ──
@@ -287,21 +291,26 @@ const AdminDashboard = () => {
     toast({ title: status === "OPEN" ? "✅ Betting Opened" : "🔒 Betting Closed", description: `${rooms.find(r => r.id === selectedRoomId)?.name} — ${status}` });
   }, [selectedRoomId, rooms, updateGameState, toast]);
 
-  // ── Auto-close betting timer (decrements every 1s) ──
+  // ── Auto-close betting timer (checks every 100ms, syncs every 1s) ──
+  const lastSyncedSec = useRef<number>(-1);
   useEffect(() => {
-    if (!localTimerEnd) return;
+    if (!localTimerEnd) {
+      lastSyncedSec.current = -1;
+      return;
+    }
 
     const interval = setInterval(() => {
-      const remaining = Math.max(0, Math.ceil((localTimerEnd - Date.now()) / 1000));
-
+      const now = Date.now();
+      const remaining = Math.max(0, Math.ceil((localTimerEnd - now) / 1000));
+      
       if (remaining <= 0) {
         handleBettingToggle("CLOSED");
         setLocalTimerEnd(null);
-      } else {
-        // Sync to DB every second
+      } else if (remaining !== lastSyncedSec.current) {
+        lastSyncedSec.current = remaining;
         updateGameState({ timer_seconds: remaining });
       }
-    }, 1000);
+    }, 100);
 
     return () => clearInterval(interval);
   }, [localTimerEnd, handleBettingToggle, updateGameState]);
@@ -567,15 +576,17 @@ const AdminDashboard = () => {
               </div>
 
               <div className="flex-1 flex flex-col gap-3">
-                <button onClick={() => handleBettingToggle("OPEN")}
-                  disabled={gameState?.betting_status === "OPEN"}
+                <button 
+                  onClick={() => handleBettingToggle("OPEN")}
+                  disabled={gameState?.betting_status === "OPEN" && (localTimerEnd === null || Date.now() < localTimerEnd)}
                   className="flex-1 rounded-2xl text-sm font-black uppercase tracking-[0.1em] transition-all disabled:opacity-30 flex flex-col items-center justify-center gap-1 shadow-2xl active:scale-95 border-2 group"
                   style={{ background: "linear-gradient(135deg, rgba(74,222,128,0.15), rgba(20,83,45,0.3))", borderColor: "rgba(74,222,128,0.4)", color: "#4ade80" }}>
                   <div className="text-[9px] opacity-40 font-medium tracking-[0.3em]">MANUAL</div>
                   ✦ OPEN BETTING
                 </button>
-                <button onClick={() => handleBettingToggle("CLOSED")}
-                  disabled={gameState?.betting_status === "CLOSED"}
+                <button 
+                  onClick={() => handleBettingToggle("CLOSED")}
+                  disabled={gameState?.betting_status === "CLOSED" || (localTimerEnd !== null && Date.now() >= localTimerEnd)}
                   className="flex-1 rounded-2xl text-sm font-black uppercase tracking-[0.1em] transition-all disabled:opacity-30 flex flex-col items-center justify-center gap-1 shadow-2xl active:scale-95 border-2 group"
                   style={{ background: "linear-gradient(135deg, rgba(248,113,113,0.15), rgba(127,29,29,0.3))", borderColor: "rgba(248,113,113,0.4)", color: "#f87171" }}>
                   <div className="text-[9px] opacity-40 font-medium tracking-[0.3em]">MANUAL</div>
