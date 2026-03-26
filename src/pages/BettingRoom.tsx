@@ -6,6 +6,45 @@ import { useToast } from "@/hooks/use-toast";
 import VideoPlayer from "@/components/room/VideoPlayer";
 import PortraitOverlay from "@/components/room/PortraitOverlay";
 
+// ── Result Sound: chime + voice announcement ──
+const playResultSound = (result: "ANDAR" | "BAHAR", didWin: boolean) => {
+    try {
+        // 1) Web Audio chime
+        const ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
+        const notes = didWin
+            ? [523.25, 659.25, 783.99, 1046.5]  // C5 E5 G5 C6 — victory
+            : [440, 392, 349.23, 329.63];          // A4 G4 F4 E4 — sad
+        notes.forEach((freq, i) => {
+            const osc = ctx.createOscillator();
+            const gain = ctx.createGain();
+            osc.connect(gain);
+            gain.connect(ctx.destination);
+            osc.type = "sine";
+            osc.frequency.value = freq;
+            const start = ctx.currentTime + i * 0.13;
+            gain.gain.setValueAtTime(0, start);
+            gain.gain.linearRampToValueAtTime(0.35, start + 0.05);
+            gain.gain.exponentialRampToValueAtTime(0.001, start + 0.45);
+            osc.start(start);
+            osc.stop(start + 0.45);
+        });
+
+        // 2) Voice announcement — slight delay so chime plays first
+        setTimeout(() => {
+            if (!window.speechSynthesis) return;
+            window.speechSynthesis.cancel();
+            const utter = new SpeechSynthesisUtterance(`${result === "ANDAR" ? "Andar" : "Bahar"} Wins!`);
+            utter.rate = 0.9;
+            utter.pitch = 1.1;
+            utter.volume = 1;
+            window.speechSynthesis.speak(utter);
+        }, 300);
+    } catch (e) {
+        console.warn("Sound playback failed:", e);
+    }
+};
+
+
 const CHIPS = [
     { value: 500, label: "500", color: "#c0392b", shadow: "#922b21" },
     { value: 1000, label: "1K", color: "#27ae60", shadow: "#1e8449" },
@@ -236,6 +275,7 @@ const BettingRoom = () => {
                         setLocalResult(newState.result);
                         setRoundResultStatus(status);
                         setWinAmount(payout);
+                        playResultSound(newState.result, status === "WON");
                         setShowResultPopup(true);
                         setTimeout(() => {
                             setShowResultPopup(false);
@@ -299,6 +339,7 @@ const BettingRoom = () => {
                 setLocalResult(incoming.result);
                 setRoundResultStatus(status);
                 setWinAmount(payout);
+                playResultSound(incoming.result, status === "WON");
                 setShowResultPopup(true);
                 setTimeout(() => {
                     setShowResultPopup(false);
