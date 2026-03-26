@@ -147,16 +147,6 @@ const AdminDashboard = () => {
 
   useEffect(() => { fetchGameState(); fetchHistory(); }, [fetchGameState, fetchHistory]);
 
-  // ── Realtime: game_state ──
-  useEffect(() => {
-    if (!selectedRoomId) return;
-    const ch = supabase.channel(`admin-gs-${selectedRoomId}`)
-      .on("postgres_changes", { event: "UPDATE", schema: "public", table: "game_state", filter: `room_id=eq.${selectedRoomId}` },
-        (p) => { setGameState(p.new as GameState); })
-      .subscribe();
-    return () => { supabase.removeChannel(ch); };
-  }, [selectedRoomId]);
-
   // ── Realtime: rooms ──
   useEffect(() => {
     const ch = supabase.channel("admin-rooms-rt")
@@ -230,40 +220,76 @@ const AdminDashboard = () => {
     if (!selectedRoomId || !gameState?.current_round) return;
     const { data } = await (supabase as any)
       .from("bets")
-      .select("side, amount, betting_phase")
+      .select("side, amount, betting_phase, status")
       .eq("room_id", selectedRoomId)
-      .eq("round_number", gameState.current_round);
+      .eq("round_number", gameState.current_round)
+      .eq("status", "PLACED");
+
     if (!data) return;
     const t = { andar1: 0, bahar1: 0, andar2: 0, bahar2: 0 };
     data.forEach((b: any) => {
       const phase = b.betting_phase || "1ST_BET";
+      const side = (b.side || "").toUpperCase();
+      const amt = Number(b.amount) || 0;
+
       if (phase === "1ST_BET") {
-        if (b.side === "ANDAR") t.andar1 += Number(b.amount);
-        else if (b.side === "BAHAR") t.bahar1 += Number(b.amount);
+        if (side === "ANDAR") t.andar1 += amt;
+        else if (side === "BAHAR") t.bahar1 += amt;
       } else {
-        if (b.side === "ANDAR") t.andar2 += Number(b.amount);
-        else if (b.side === "BAHAR") t.bahar2 += Number(b.amount);
+        if (side === "ANDAR") t.andar2 += amt;
+        else if (side === "BAHAR") t.bahar2 += amt;
       }
     });
     setBetTotals(t);
   }, [selectedRoomId, gameState?.current_round]);
 
-  useEffect(() => {
-    fetchBetTotals();
-  }, [fetchBetTotals]);
+  // ── Stable Refs for Realtime Callbacks ──
+  const fetchBetTotalsRef = useRef(fetchBetTotals);
+  const fetchRoomVolumesRef = useRef(fetchRoomVolumes);
+  const fetchGameStateRef = useRef(fetchGameState);
+  
+  useEffect(() => { fetchBetTotalsRef.current = fetchBetTotals; }, [fetchBetTotals]);
+  useEffect(() => { fetchRoomVolumesRef.current = fetchRoomVolumes; }, [fetchRoomVolumes]);
+  useEffect(() => { fetchGameStateRef.current = fetchGameState; }, [fetchGameState]);
 
+  // ── Realtime: game_state ──
   useEffect(() => {
-    fetchRoomVolumes();
+    if (!selectedRoomId) return;
+    console.log(`[Realtime] Subscribing to GS for ${selectedRoomId}`);
+    const ch = supabase.channel(`admin-gs-${selectedRoomId}`)
+      .on("postgres_changes", { event: "UPDATE", schema: "public", table: "game_state", filter: `room_id=eq.${selectedRoomId}` },
+        (p) => { 
+          console.log("Realtime GS Update:", p);
+          setGameState(p.new as GameState); 
+          fetchBetTotalsRef.current(); // Also trigger totals fetch on state update
+        })
+      .subscribe((status) => {
+        console.log(`Realtime GS Status for ${selectedRoomId}:`, status);
+      });
+    return () => { supabase.removeChannel(ch); };
+  }, [selectedRoomId]);
 
+  // ── Realtime: bets ──
+  useEffect(() => {
+    console.log("[Realtime] Subscribing to Bets Channel");
     const channel = supabase.channel('bets_channel')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'bets' }, () => {
-        fetchRoomVolumes();
-        fetchBetTotals();
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'bets' }, (payload) => {
+        console.log("Realtime Bet Change Detected:", payload);
+        fetchRoomVolumesRef.current();
+        fetchBetTotalsRef.current();
       })
-      .subscribe();
+      .subscribe((status) => {
+        console.log("Realtime Bets Status:", status);
+      });
 
     return () => { supabase.removeChannel(channel); };
-  }, [fetchRoomVolumes, fetchBetTotals]);
+  }, []); // NO DEPENDENCIES: Stable throughout mounting
+
+  // ── Initial Fetch ──
+  useEffect(() => {
+    fetchBetTotals();
+    fetchRoomVolumes();
+  }, [selectedRoomId]); // Re-fetch only when room changes
 
   useEffect(() => {
     let result = users;
@@ -520,12 +546,21 @@ const AdminDashboard = () => {
               <span className="text-[10px] text-white/20 uppercase">Latency: <span className="text-emerald-400 font-bold">{latency}ms</span></span>
               <span className="text-[10px] text-white/20 uppercase">Session: <span className="text-blue-400 font-bold">{fmtSession(sessionSeconds)}</span></span>
             </div>
-            <button onClick={() => { fetchGameState(); fetchHistory(); }} className="text-white/30 hover:text-white transition-colors">
+            <button 
+              onClick={() => { 
+                fetchGameState(); 
+                fetchHistory(); 
+                fetchBetTotals(); 
+                fetchRoomVolumes(); 
+                toast({ title: "Dashboard Synced", description: "Real-time data refreshed." });
+              }} 
+              className="text-white/30 hover:text-white transition-colors"
+            >
               <RefreshCw className="w-4 h-4" />
             </button>
           </div>
         </div>
-        
+
         {/* ── LIVE BET TOTALS (UNDER HEADER) ── */}
         <div className="mb-4 mt-2 p-3 rounded-2xl bg-black/40 border border-white/10 shadow-2xl overflow-hidden backdrop-blur-md">
           <div className="flex items-center justify-between mb-0 px-2">
