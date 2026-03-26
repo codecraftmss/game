@@ -72,6 +72,10 @@ const AdminDashboard = () => {
   // Confirm modal
   const [confirmModal, setConfirmModal] = useState<{ open: boolean; outcome: "ANDAR" | "BAHAR" | null }>({ open: false, outcome: null });
 
+  // Live bet totals
+  type BetTotals = { andar1: number; bahar1: number; andar2: number; bahar2: number };
+  const [betTotals, setBetTotals] = useState<BetTotals>({ andar1: 0, bahar1: 0, andar2: 0, bahar2: 0 });
+
   // Broadcast
   const [broadcastMsg, setBroadcastMsg] = useState("");
 
@@ -221,17 +225,45 @@ const AdminDashboard = () => {
     setRoomVolumes(volumes);
   }, []);
 
+  // ── Fetch current round bet totals (Andar/Bahar per phase) ──
+  const fetchBetTotals = useCallback(async () => {
+    if (!selectedRoomId || !gameState?.current_round) return;
+    const { data } = await (supabase as any)
+      .from("bets")
+      .select("side, amount, betting_phase")
+      .eq("room_id", selectedRoomId)
+      .eq("round_number", gameState.current_round);
+    if (!data) return;
+    const t = { andar1: 0, bahar1: 0, andar2: 0, bahar2: 0 };
+    data.forEach((b: any) => {
+      const phase = b.betting_phase || "1ST_BET";
+      if (phase === "1ST_BET") {
+        if (b.side === "ANDAR") t.andar1 += Number(b.amount);
+        else if (b.side === "BAHAR") t.bahar1 += Number(b.amount);
+      } else {
+        if (b.side === "ANDAR") t.andar2 += Number(b.amount);
+        else if (b.side === "BAHAR") t.bahar2 += Number(b.amount);
+      }
+    });
+    setBetTotals(t);
+  }, [selectedRoomId, gameState?.current_round]);
+
+  useEffect(() => {
+    fetchBetTotals();
+  }, [fetchBetTotals]);
+
   useEffect(() => {
     fetchRoomVolumes();
 
-    const channel = supabase.channel('admin-bet-volumes')
+    const channel = supabase.channel('bets_channel')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'bets' }, () => {
         fetchRoomVolumes();
+        fetchBetTotals();
       })
       .subscribe();
 
     return () => { supabase.removeChannel(channel); };
-  }, [fetchRoomVolumes]);
+  }, [fetchRoomVolumes, fetchBetTotals]);
 
   useEffect(() => {
     let result = users;
@@ -491,6 +523,58 @@ const AdminDashboard = () => {
             <button onClick={() => { fetchGameState(); fetchHistory(); }} className="text-white/30 hover:text-white transition-colors">
               <RefreshCw className="w-4 h-4" />
             </button>
+          </div>
+        </div>
+        
+        {/* ── LIVE BET TOTALS (UNDER HEADER) ── */}
+        <div className="mb-8 p-4 rounded-2xl bg-black/40 border border-white/10 shadow-2xl overflow-hidden">
+          <div className="flex items-center justify-between mb-4 px-2">
+            <div className="flex items-center gap-2">
+              <TrendingUp className="w-4 h-4 text-emerald-400" />
+              <span className="text-xs font-black text-white uppercase tracking-[0.2em]">Live Bet Totals</span>
+            </div>
+            <div className="flex items-center gap-3">
+              <div className="text-[10px] font-black text-emerald-400/60 uppercase tracking-widest bg-emerald-400/10 px-3 py-1 rounded-full border border-emerald-400/20">Round #{gameState?.current_round ?? "—"}</div>
+              <Badge variant="outline" className="text-[9px] bg-white/5 border-white/10 text-white/30 uppercase px-2 py-0 h-5">Real-time Feed</Badge>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-6">
+            {/* PHASE 1 */}
+            <div className="p-3 rounded-xl bg-white/2 border border-white/5">
+              <div className="text-[10px] font-black text-white/30 uppercase tracking-[0.2em] mb-3 px-1 border-b border-white/5 pb-2 flex justify-between">
+                <span>Phase 1</span>
+                <span className="text-emerald-500/40 italic font-mono text-[9px]">Active</span>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="text-center">
+                  <div className="text-[9px] text-red-500/40 font-bold uppercase tracking-widest mb-1.5">Andar</div>
+                  <div className="text-xl font-black text-red-500 font-mono tracking-wider">₹{betTotals.andar1.toLocaleString()}</div>
+                </div>
+                <div className="text-center border-l border-white/5">
+                  <div className="text-[9px] text-blue-500/40 font-bold uppercase tracking-widest mb-1.5">Bahar</div>
+                  <div className="text-xl font-black text-blue-400 font-mono tracking-wider">₹{betTotals.bahar1.toLocaleString()}</div>
+                </div>
+              </div>
+            </div>
+
+            {/* PHASE 2 */}
+            <div className="p-3 rounded-xl bg-white/2 border border-white/5 transition-opacity duration-500" style={{ opacity: gameState?.betting_phase === "2ND_BET" ? 1 : 0.2 }}>
+              <div className="text-[10px] font-black text-white/30 uppercase tracking-[0.2em] mb-3 px-1 border-b border-white/5 pb-2 flex justify-between">
+                <span>Phase 2</span>
+                <span className="text-white/10 font-mono text-[9px]">{gameState?.betting_phase === "2ND_BET" ? "Currently Betting" : "Upcoming"}</span>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="text-center">
+                  <div className="text-[9px] text-red-500/40 font-bold uppercase tracking-widest mb-1.5">Andar</div>
+                  <div className="text-xl font-black text-red-500 font-mono tracking-wider">₹{betTotals.andar2.toLocaleString()}</div>
+                </div>
+                <div className="text-center border-l border-white/5">
+                  <div className="text-[9px] text-blue-500/40 font-bold uppercase tracking-widest mb-1.5">Bahar</div>
+                  <div className="text-xl font-black text-blue-400 font-mono tracking-wider">₹{betTotals.bahar2.toLocaleString()}</div>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
 

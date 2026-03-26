@@ -320,38 +320,38 @@ const BettingRoom = () => {
                 incoming.current_round !== prev?.current_round ||
                 incoming.timer_seconds !== prev?.timer_seconds
             ) {
-            // ── Determine win status BEFORE clearing history ──
-            let status: "WON" | "LOST" | "NONE" = "NONE";
-            let payout = 0;
-            const sideWon = incoming.result?.toLowerCase();
-            const currentBets = betHistoryRef.current;
-            if (sideWon && currentBets.length > 0) {
-                const winningBets = currentBets.filter(b => b.side === sideWon);
-                if (winningBets.length > 0) {
-                    status = "WON";
-                    payout = winningBets.reduce((s, b) => s + b.amount * 2.0, 0);
-                } else {
-                    status = "LOST";
+                // ── Determine win status BEFORE clearing history ──
+                let status: "WON" | "LOST" | "NONE" = "NONE";
+                let payout = 0;
+                const sideWon = incoming.result?.toLowerCase();
+                const currentBets = betHistoryRef.current;
+                if (sideWon && currentBets.length > 0) {
+                    const winningBets = currentBets.filter(b => b.side === sideWon);
+                    if (winningBets.length > 0) {
+                        status = "WON";
+                        payout = winningBets.reduce((s, b) => s + b.amount * 2.0, 0);
+                    } else {
+                        status = "LOST";
+                    }
                 }
-            }
 
-            if (incoming.result && incoming.result !== prev?.result) {
-                setLocalResult(incoming.result);
-                setRoundResultStatus(status);
-                setWinAmount(payout);
-                playResultSound(incoming.result, status === "WON");
-                setShowResultPopup(true);
-                setTimeout(() => {
-                    setShowResultPopup(false);
-                    setRoundResultStatus(null);
-                }, 5000);
-            }
-            if (incoming.current_round !== prev?.current_round) {
-                setBetHistory([]); betHistoryRef.current = [];
-                setPlacedBetsCount(0);
-                setFirstBetTotal(0); setSecondBetTotal(0);
-            }
-            setGameState(incoming);
+                if (incoming.result && incoming.result !== prev?.result) {
+                    setLocalResult(incoming.result);
+                    setRoundResultStatus(status);
+                    setWinAmount(payout);
+                    playResultSound(incoming.result, status === "WON");
+                    setShowResultPopup(true);
+                    setTimeout(() => {
+                        setShowResultPopup(false);
+                        setRoundResultStatus(null);
+                    }, 5000);
+                }
+                if (incoming.current_round !== prev?.current_round) {
+                    setBetHistory([]); betHistoryRef.current = [];
+                    setPlacedBetsCount(0);
+                    setFirstBetTotal(0); setSecondBetTotal(0);
+                }
+                setGameState(incoming);
             }
         }, 5000); // poll every 5 seconds
         return () => clearInterval(poll);
@@ -373,18 +373,18 @@ const BettingRoom = () => {
     useEffect(() => {
         let sub: any;
         let pollInterval: any;
-        
+
         const setup = async () => {
             const { data: { user } } = await supabase.auth.getUser();
             if (!user) return;
-            
+
             sub = supabase.channel(`player-profile-${roomId}-${user.id}`)
                 .on("postgres_changes", { event: "UPDATE", schema: "public", table: "profiles", filter: `id=eq.${user.id}` }, (p) => {
                     setBalance((p.new as any).token_balance || 0);
                     balanceRef.current = (p.new as any).token_balance || 0;
                 })
                 .subscribe();
-                
+
             pollInterval = setInterval(async () => {
                 const { data } = await supabase.from("profiles").select("token_balance").eq("id", user.id).maybeSingle() as any;
                 if (data) {
@@ -393,10 +393,10 @@ const BettingRoom = () => {
                 }
             }, 3000);
         };
-        
+
         setup();
-        return () => { 
-            if (sub) supabase.removeChannel(sub); 
+        return () => {
+            if (sub) supabase.removeChannel(sub);
             if (pollInterval) clearInterval(pollInterval);
         };
     }, [roomId]);
@@ -407,11 +407,11 @@ const BettingRoom = () => {
         const setupPresence = async () => {
             const { data: { user } } = await supabase.auth.getUser();
             if (!user) return;
-            
+
             presenceChannel = supabase.channel('global-presence', {
                 config: { presence: { key: user.id } }
             });
-            
+
             presenceChannel.subscribe(async (status: string) => {
                 if (status === 'SUBSCRIBED') {
                     await presenceChannel.track({ room_id: roomId, user_id: user.id });
@@ -419,9 +419,9 @@ const BettingRoom = () => {
             });
         };
         setupPresence();
-        
-        return () => { 
-            if (presenceChannel) supabase.removeChannel(presenceChannel); 
+
+        return () => {
+            if (presenceChannel) supabase.removeChannel(presenceChannel);
         };
     }, [roomId]);
 
@@ -503,7 +503,8 @@ const BettingRoom = () => {
             const { data, error } = await (supabase.rpc("place_bet" as any, {
                 p_user_id: user.id, p_room_id: roomId,
                 p_round_number: gameState?.current_round || 1, p_side: "ANDAR", p_amount: newAndarTotal,
-                p_target_card: gameState?.target_card // Added target card
+                p_target_card: gameState?.target_card,
+                p_betting_phase: gameState?.betting_phase || "1ST_BET"
             }) as any);
             if (error || !(data as any).success) {
                 toast({ title: "Bet Failed", description: error?.message || (data as any)?.message, variant: "destructive" });
@@ -516,7 +517,8 @@ const BettingRoom = () => {
             const { data, error } = await (supabase.rpc("place_bet" as any, {
                 p_user_id: user.id, p_room_id: roomId,
                 p_round_number: gameState?.current_round || 1, p_side: "BAHAR", p_amount: newBaharTotal,
-                p_target_card: gameState?.target_card // Added target card
+                p_target_card: gameState?.target_card,
+                p_betting_phase: gameState?.betting_phase || "1ST_BET"
             }) as any);
             if (error || !(data as any).success) {
                 toast({ title: "Bet Failed", description: error?.message || (data as any)?.message, variant: "destructive" });
@@ -528,14 +530,14 @@ const BettingRoom = () => {
 
         if (placedSomething) {
             setPlacedBetsCount(betHistory.length);
-            
+
             if (gameState?.betting_phase === "1ST_BET") {
                 setFirstBetTotal(totalBet);
             } else if (gameState?.betting_phase === "2ND_BET") {
                 // Second bet total is the additional amount added since phase 1
                 setSecondBetTotal(totalBet - firstBetTotal);
             }
-    
+
             if (isHistoryOpen) fetchUserBets();
         }
     };
@@ -991,7 +993,7 @@ const BettingRoom = () => {
                                 <div key={i} className="bg-white/5 rounded-lg p-3 border border-white/10">
                                     <div className="flex items-center justify-between mb-2">
                                         <span className="text-[10px] font-black text-white/50 uppercase tracking-wider">Round #{b.round_number}</span>
-                                        <span className="text-[10px] text-white/30">{new Date(b.created_at).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</span>
+                                        <span className="text-[10px] text-white/30">{new Date(b.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
                                     </div>
                                     <div className="flex items-center justify-between">
                                         <div className="flex items-center gap-2">
