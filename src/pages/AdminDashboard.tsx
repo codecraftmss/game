@@ -488,10 +488,10 @@ const AdminDashboard = () => {
         </div>
       </header>
 
-      <main className="container mx-auto px-6 py-6 space-y-12">
+      <main className="container mx-auto px-6 py-4 space-y-6">
 
         {/* ROOM SELECTOR + STATS HEADER */}
-        <div className="rounded-2xl p-4 mb-2 flex flex-wrap items-center gap-4 bg-white/5 border border-white/10 backdrop-blur-md">
+        <div className="rounded-2xl p-3 mb-0 flex flex-wrap items-center gap-4 bg-white/5 border border-white/10 backdrop-blur-md">
           <div className="relative">
             <select
               value={selectedRoomId}
@@ -527,8 +527,8 @@ const AdminDashboard = () => {
         </div>
         
         {/* ── LIVE BET TOTALS (UNDER HEADER) ── */}
-        <div className="mb-8 p-4 rounded-2xl bg-black/40 border border-white/10 shadow-2xl overflow-hidden">
-          <div className="flex items-center justify-between mb-4 px-2">
+        <div className="mb-4 mt-2 p-3 rounded-2xl bg-black/40 border border-white/10 shadow-2xl overflow-hidden backdrop-blur-md">
+          <div className="flex items-center justify-between mb-0 px-2">
             <div className="flex items-center gap-2">
               <TrendingUp className="w-4 h-4 text-emerald-400" />
               <span className="text-xs font-black text-white uppercase tracking-[0.2em]">Live Bet Totals</span>
@@ -738,7 +738,7 @@ const AdminDashboard = () => {
 
             {/* COLUMN 4: Card Selection Grid */}
             <div className="col-span-4 bg-black/40 rounded-2xl p-4 border border-white/10 flex flex-col shadow-2xl overflow-hidden">
-              <div className="flex items-center justify-between mb-3 px-1">
+              <div className="flex items-center justify-between mb-2 px-3">
                 <span className="text-[10px] font-black text-white/40 uppercase tracking-[0.2em]">Set Target Card</span>
                 <Badge variant="outline" className="text-[8px] bg-white/5 border-white/10 text-white/30 uppercase px-1.5 py-0 h-4">Real-time</Badge>
               </div>
