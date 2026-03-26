@@ -64,6 +64,7 @@ const BettingRoom = () => {
     const [showBettingOpenBanner, setShowBettingOpenBanner] = useState(false);
     const [showPhaseBanner, setShowPhaseBanner] = useState<"1ST" | "2ND" | null>(null);
     const [roundResultStatus, setRoundResultStatus] = useState<'WON' | 'LOST' | 'NONE' | null>(null);
+    const [winAmount, setWinAmount] = useState<number>(0);
 
     const fetchUserBets = async () => {
         const { data: { user } } = await supabase.auth.getUser();
@@ -218,16 +219,23 @@ const BettingRoom = () => {
 
                     // ── Capture win/loss status BEFORE clearing history ──
                     let status: "WON" | "LOST" | "NONE" = "NONE";
+                    let payout = 0;
                     const sideWon = newState.result?.toLowerCase();
                     const currentBets = betHistoryRef.current;
                     if (sideWon && currentBets.length > 0) {
-                        const hasWon = currentBets.some(b => b.side === sideWon);
-                        status = hasWon ? "WON" : "LOST";
+                        const winningBets = currentBets.filter(b => b.side === sideWon);
+                        if (winningBets.length > 0) {
+                            status = "WON";
+                            payout = winningBets.reduce((s, b) => s + b.amount * 2.0, 0);
+                        } else {
+                            status = "LOST";
+                        }
                     }
 
                     if (newState.result && newState.result !== prev?.result) {
                         setLocalResult(newState.result);
                         setRoundResultStatus(status);
+                        setWinAmount(payout);
                         setShowResultPopup(true);
                         setTimeout(() => {
                             setShowResultPopup(false);
@@ -274,16 +282,23 @@ const BettingRoom = () => {
             ) {
             // ── Determine win status BEFORE clearing history ──
             let status: "WON" | "LOST" | "NONE" = "NONE";
+            let payout = 0;
             const sideWon = incoming.result?.toLowerCase();
             const currentBets = betHistoryRef.current;
             if (sideWon && currentBets.length > 0) {
-                const hasWon = currentBets.some(b => b.side === sideWon);
-                status = hasWon ? "WON" : "LOST";
+                const winningBets = currentBets.filter(b => b.side === sideWon);
+                if (winningBets.length > 0) {
+                    status = "WON";
+                    payout = winningBets.reduce((s, b) => s + b.amount * 2.0, 0);
+                } else {
+                    status = "LOST";
+                }
             }
 
             if (incoming.result && incoming.result !== prev?.result) {
                 setLocalResult(incoming.result);
                 setRoundResultStatus(status);
+                setWinAmount(payout);
                 setShowResultPopup(true);
                 setTimeout(() => {
                     setShowResultPopup(false);
@@ -753,7 +768,7 @@ const BettingRoom = () => {
                         }}>
                         <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-start", justifyContent: "center", height: "100%", position: "relative", zIndex: 1 }}>
                             <span style={{ color: "#fff", fontWeight: 900, fontSize: 22, letterSpacing: "0.05em", textShadow: "0 2px 4px rgba(0,0,0,0.5)" }}>ANDAR</span>
-                            <span style={{ color: "#a4d4dc", fontWeight: 700, fontSize: 11, letterSpacing: "0.15em", marginTop: 1 }}>0.9:1</span>
+                            <span style={{ color: "#a4d4dc", fontWeight: 700, fontSize: 11, letterSpacing: "0.15em", marginTop: 1 }}>1:1</span>
                         </div>
                         {/* Chip stack */}
                         {andarBets.length > 0 && (
@@ -953,9 +968,14 @@ const BettingRoom = () => {
                                     {(b.status || b.payout) && (
                                         <div className="mt-2 pt-2 border-t border-white/10 flex justify-between items-center text-[10px]">
                                             <span className="text-white/40 uppercase tracking-wider font-black">Status:</span>
-                                            <span className={`font-black uppercase tracking-widest ${b.status?.toUpperCase() === 'WON' ? 'text-emerald-400' : b.status?.toUpperCase() === 'LOST' ? 'text-red-400' : 'text-amber-400'}`}>
-                                                {b.status || 'PENDING'}
-                                            </span>
+                                            <div className="flex items-center gap-2">
+                                                {b.status?.toUpperCase() === 'WON' && (
+                                                    <span className="text-emerald-400 font-black text-[11px]">+₹{(b.amount * 2).toLocaleString()}</span>
+                                                )}
+                                                <span className={`font-black uppercase tracking-widest ${b.status?.toUpperCase() === 'WON' ? 'text-emerald-400' : b.status?.toUpperCase() === 'LOST' ? 'text-red-400' : 'text-amber-400'}`}>
+                                                    {b.status || 'PENDING'}
+                                                </span>
+                                            </div>
                                         </div>
                                     )}
                                 </div>
@@ -982,8 +1002,13 @@ const BettingRoom = () => {
                         <div style={{ color: "#fff", fontWeight: 900, fontSize: 22, letterSpacing: "0.1em", textTransform: "uppercase", marginBottom: 4 }}>
                             {roundResultStatus === "WON" ? "You Win!" : roundResultStatus === "LOST" ? "Better Luck!" : `${localResult} Wins!`}
                         </div>
+                        {roundResultStatus === "WON" && winAmount > 0 && (
+                            <div style={{ color: "#4ade80", fontWeight: 900, fontSize: 26, letterSpacing: "0.05em", marginBottom: 2 }}>
+                                +₹{winAmount.toLocaleString()}
+                            </div>
+                        )}
                         <div style={{ color: "rgba(255,255,255,0.75)", fontSize: 13, fontWeight: 600 }}>
-                            {localResult.toLowerCase()} wins this round
+                            {localResult?.toLowerCase()} wins this round
                         </div>
                         <div style={{ color: "rgba(255,255,255,0.4)", fontSize: 11, marginTop: 14, letterSpacing: "0.05em" }}>Tap to dismiss</div>
                     </div>
