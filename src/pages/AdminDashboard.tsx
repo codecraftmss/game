@@ -198,6 +198,25 @@ const AdminDashboard = () => {
 
   useEffect(() => { fetchUsers(); }, [fetchUsers]);
 
+  // ── Real-time User Sync ──
+  useEffect(() => {
+    const channel = supabase
+      .channel('public_profiles_changes')
+      .on('postgres_changes', { 
+        event: '*', 
+        schema: 'public', 
+        table: 'profiles' 
+      }, () => {
+        console.log("Profile change detected, refetching users...");
+        fetchUsers();
+      })
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [fetchUsers]);
+
   // ── Fetch bet volumes per room ──
   const fetchRoomVolumes = useCallback(async () => {
     const { data, error } = await supabase
