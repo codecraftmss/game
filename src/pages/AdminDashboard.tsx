@@ -9,7 +9,8 @@ import { useToast } from "@/hooks/use-toast";
 import {
   LogOut, ShieldCheck, Users, CheckCircle, Ban, Clock, Filter, Search,
   TrendingUp, UserCheck, UserX, Tv2, WifiOff, Wrench, CircleDot,
-  ChevronDown, Send, Wifi, RefreshCw, Trophy, AlertTriangle, Coins
+  ChevronDown, Send, Wifi, RefreshCw, Trophy, AlertTriangle, Coins,
+  Eye, EyeOff, Trash2
 } from "lucide-react";
 
 // ─── Types ───────────────────────────────────────────────────────
@@ -38,6 +39,7 @@ type GameHistory = {
 type UserProfile = {
   id: string; name: string; phone: string | null;
   status: "PENDING" | "APPROVED" | "BLOCKED";
+  password?: string;
   created_at: string;
 };
 
@@ -89,6 +91,7 @@ const AdminDashboard = () => {
   const [searchQuery, setSearchQuery] = useState("");
   const [usersLoading, setUsersLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
+  const [visiblePasswords, setVisiblePasswords] = useState<Set<string>>(new Set());
 
   // Room management
   const [roomActionLoading, setRoomActionLoading] = useState<string | null>(null);
@@ -188,7 +191,8 @@ const AdminDashboard = () => {
 
   // ── Fetch users ──
   const fetchUsers = useCallback(async () => {
-    const { data } = await supabase.from("profiles").select("*").order("created_at", { ascending: false });
+    // Use the RPC to get only players (excludes admins for security)
+    const { data } = await (supabase as any).rpc("get_player_profiles");
     if (data) { setUsers(data as UserProfile[]); setUsersLoading(false); }
   }, []);
 
@@ -450,13 +454,43 @@ const AdminDashboard = () => {
     try {
       const { data: { user: cu } } = await supabase.auth.getUser();
       const u: any = { status: action };
-      if (action === "APPROVED") u.approved_at = new Date().toISOString();
+      if (action === "APPROVED") (u as any).approved_at = new Date().toISOString();
       await supabase.from("profiles").update(u).eq("id", userId);
       await supabase.from("admin_actions").insert({ admin_id: cu?.id, target_user_id: userId, action: action === "APPROVED" ? "approve" : "block" });
       toast({ title: action === "APPROVED" ? "User Approved" : "User Blocked" });
       fetchUsers();
     } catch (err: any) { toast({ title: "Error", description: err.message, variant: "destructive" }); }
     finally { setActionLoading(null); }
+  };
+
+  const handleDeleteUser = async (user: UserProfile) => {
+    if (!window.confirm(`Are you absolutely sure you want to delete ${user.name}? This will remove them from the entire system.`)) return;
+    
+    setActionLoading(user.id);
+    try {
+      const { data, error } = await (supabase as any).rpc("delete_user_admin", { p_user_id: user.id });
+      
+      if (error) throw error;
+      if (!data || !data.success) {
+        throw new Error(data?.message || "Internal server error during deletion");
+      }
+
+      toast({ title: "User Deleted", description: `Successfully removed ${user.name}` });
+      fetchUsers();
+    } catch (err: any) {
+      toast({ title: "Delete Failed", description: err.message, variant: "destructive" });
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
+  const togglePasswordVisibility = (userId: string) => {
+    setVisiblePasswords(prev => {
+      const next = new Set(prev);
+      if (next.has(userId)) next.delete(userId);
+      else next.add(userId);
+      return next;
+    });
   };
 
   const handleLogout = async () => { await logout(); navigate("/admin/login"); };
@@ -943,8 +977,8 @@ const AdminDashboard = () => {
               <table className="w-full">
                 <thead>
                   <tr className="bg-white/5 border-b border-white/10">
-                    {["Member", "Terminal/Phone", "Status", "Joined On", "Authorization"].map((h, i) => (
-                      <th key={h} className={`py-4 px-6 text-[11px] font-black uppercase tracking-widest text-white/40 ${i === 4 ? "text-right" : "text-left"}`}>{h}</th>
+                    {["Member", "Phone", "Password", "Status", "Joined On", "Actions"].map((h, i) => (
+                      <th key={h} className={`py-4 px-6 text-[11px] font-black uppercase tracking-widest text-white/40 ${i === 5 ? "text-right" : "text-left"}`}>{h}</th>
                     ))}
                   </tr>
                 </thead>
@@ -961,13 +995,23 @@ const AdminDashboard = () => {
                       </td>
                       <td className="py-4 px-6 text-white/50 font-mono text-sm">{user.phone || "HIDDEN"}</td>
                       <td className="py-4 px-6">
+                        <div className="flex items-center gap-2 group/pass relative">
+                           <span className="text-white/50 font-mono text-sm">
+                             {visiblePasswords.has(user.id) ? (user.password || "No Pass") : "••••••••"}
+                           </span>
+                           <button onClick={() => togglePasswordVisibility(user.id)} className="text-white/20 hover:text-amber-400 transition-colors">
+                              {visiblePasswords.has(user.id) ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                           </button>
+                        </div>
+                      </td>
+                      <td className="py-4 px-6">
                         {user.status === "PENDING" && <Badge variant="outline" className="border-amber-500/40 text-amber-400 bg-amber-500/5 px-3 py-1 rounded-lg uppercase text-[9px] font-black italic">Awaiting Approval</Badge>}
                         {user.status === "APPROVED" && <Badge variant="outline" className="border-emerald-500/40 text-emerald-400 bg-emerald-500/5 px-3 py-1 rounded-lg uppercase text-[9px] font-black">Verified User</Badge>}
                         {user.status === "BLOCKED" && <Badge variant="outline" className="border-red-500/40 text-red-400 bg-red-500/5 px-3 py-1 rounded-lg uppercase text-[9px] font-black italic">Terminal Blocked</Badge>}
                       </td>
                       <td className="py-4 px-6 text-white/30 text-xs font-bold">{new Date(user.created_at).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' })}</td>
                       <td className="py-4 px-6">
-                        <div className="flex gap-2 justify-end">
+                        <div className="flex gap-2 justify-end items-center">
                           {user.status !== "APPROVED" && (
                             <button onClick={() => handleUserAction(user.id, "APPROVED")} disabled={actionLoading === user.id}
                               className="bg-emerald-500 text-black font-black text-[10px] uppercase px-4 py-2 rounded-xl hover:bg-emerald-400 transition-all active:scale-95 disabled:opacity-50">
@@ -980,6 +1024,10 @@ const AdminDashboard = () => {
                               Block
                             </button>
                           )}
+                          <button onClick={() => handleDeleteUser(user)} disabled={actionLoading === user.id}
+                            className="p-2 text-white/20 hover:text-red-500 transition-colors disabled:opacity-50">
+                            <Trash2 className="w-4 h-4" />
+                          </button>
                         </div>
                       </td>
                     </tr>

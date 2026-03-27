@@ -9,7 +9,7 @@ export async function signUp(name: string, phone: string, password: string) {
     email,
     password,
     options: {
-      data: { name, phone },
+      data: { name, phone, password },
       emailRedirectTo: undefined,
     },
   });
