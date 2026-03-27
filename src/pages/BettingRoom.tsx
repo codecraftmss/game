@@ -44,6 +44,32 @@ const playResultSound = (result: "ANDAR" | "BAHAR", didWin: boolean) => {
     }
 };
 
+// ── Status Sound: simple chime + voice ──
+const playStatusSound = (status: "OPEN" | "CLOSED") => {
+    try {
+        const ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.type = "sine";
+        osc.frequency.value = status === "OPEN" ? 880 : 440;
+        gain.gain.setValueAtTime(0, ctx.currentTime);
+        gain.gain.linearRampToValueAtTime(0.2, ctx.currentTime + 0.05);
+        gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.4);
+        osc.start();
+        osc.stop(ctx.currentTime + 0.4);
+
+        setTimeout(() => {
+            if (!window.speechSynthesis) return;
+            window.speechSynthesis.cancel();
+            const utter = new SpeechSynthesisUtterance(`Betting ${status === "OPEN" ? "Opened" : "Closed"}`);
+            utter.rate = 1.0;
+            window.speechSynthesis.speak(utter);
+        }, 150);
+    } catch (e) {}
+};
+
 
 const CHIPS = [
     { value: 500, label: "500", color: "#c0392b", shadow: "#922b21" },
@@ -158,11 +184,13 @@ const BettingRoom = () => {
         if (gameState?.betting_status === "CLOSED" && !localResult) {
             setShowBettingClosedBanner(true);
             setShowBettingOpenBanner(false);
+            playStatusSound("CLOSED");
             const timer = setTimeout(() => setShowBettingClosedBanner(false), 3500);
             return () => clearTimeout(timer);
         } else if (gameState?.betting_status === "OPEN") {
             setShowBettingOpenBanner(true);
             setShowBettingClosedBanner(false);
+            playStatusSound("OPEN");
             const timer = setTimeout(() => setShowBettingOpenBanner(false), 3500);
             return () => clearTimeout(timer);
         }
