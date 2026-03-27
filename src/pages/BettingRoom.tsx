@@ -176,7 +176,7 @@ const BettingRoom = () => {
         } else {
             setDisplayTimer(0);
         }
-    }, [gameState?.betting_status, gameState?.timer_seconds === 15]); // Extra trigger on 15 to ensure reset
+    }, [gameState?.betting_status, gameState?.timer_seconds === 20]); // Extra trigger on 20 to ensure reset
 
     // ── Handle Betting Status & Phase Banners ──
     useEffect(() => {

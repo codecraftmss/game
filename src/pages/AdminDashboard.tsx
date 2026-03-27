@@ -333,8 +333,8 @@ const AdminDashboard = () => {
   const handleBettingToggle = useCallback(async (status: "OPEN" | "CLOSED") => {
     const patch: any = { betting_status: status, result: null };
     if (status === "OPEN") {
-      patch.timer_seconds = 15;
-      setLocalTimerEnd(Date.now() + 15000);
+      patch.timer_seconds = 20;
+      setLocalTimerEnd(Date.now() + 20000);
     } else {
       setLocalTimerEnd(null);
     }
