@@ -209,7 +209,7 @@ const BettingRoom = () => {
         }
     }, [gameState?.betting_phase]);
 
-    // ── Fetch room ──
+    // ── Fetch room & Subscribe to Status Updates ──
     useEffect(() => {
         if (!roomId) return;
         const fetchRoom = async () => {
@@ -220,7 +220,26 @@ const BettingRoom = () => {
             else { setRoomInfo({ name: data.name, minBet: Number(data.min_bet), streamUrl: data.stream_url ?? undefined }); setRoomLoading(false); }
         };
         fetchRoom();
-    }, [roomId, navigate]);
+
+        // Subscribe to status changes for this room
+        const roomChannel = supabase
+            .channel(`room-status-${roomId}`)
+            .on("postgres_changes", {
+                event: "UPDATE",
+                schema: "public",
+                table: "rooms",
+                filter: `id=eq.${roomId}`,
+            }, (payload: any) => {
+                const updatedRoom = payload.new;
+                if (updatedRoom.status !== "ONLINE") {
+                    navigate("/dashboard");
+                    toast({ title: "Room Offline", description: "This room is no longer available.", variant: "destructive" });
+                }
+            })
+            .subscribe();
+
+        return () => { supabase.removeChannel(roomChannel); };
+    }, [roomId, navigate, toast]);
 
     // ── Fetch initial game state ──
     useEffect(() => {
