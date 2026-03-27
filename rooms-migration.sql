@@ -22,7 +22,7 @@ CREATE TABLE IF NOT EXISTS public.rooms (
 INSERT INTO public.rooms (name, label, min_bet, max_bet, status, image_url, open_time, close_time)
 VALUES
   ('High Stakes',   'ROOM 01', 500,  50000, 'ONLINE',  'https://images.unsplash.com/photo-1541278107931-e006523892df?w=400&q=80', '11:00 AM', '10:00 PM'),
-  ('Royal Flush',   'ROOM 02', 1000, 50000, 'ONLINE',  'https://images.unsplash.com/photo-1609743522653-52354461eb27?w=400&q=80', '11:00 AM', '10:00 PM'),
+  ('Royal Star',    'ROOM 02', 1000, 50000, 'ONLINE',  'https://images.unsplash.com/photo-1609743522653-52354461eb27?w=400&q=80', '11:00 AM', '10:00 PM'),
   ('Privé Lounge',  'ROOM 03', 2000, 50000, 'OFFLINE', NULL, '11:00 AM', '10:00 PM'),
   ('Practice Deck', 'ROOM 04', 500,  10000, 'OFFLINE', NULL, '11:00 AM', '10:00 PM')
 ON CONFLICT DO NOTHING;

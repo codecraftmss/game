@@ -120,8 +120,8 @@ const AdminDashboard = () => {
     if (data && data.length > 0) {
       setRooms(data as Room[]);
       if (!selectedRoomId) {
-        const royalFlush = data.find((r: Room) => r.name.toUpperCase().includes("ROYAL FLUSH"));
-        setSelectedRoomId(royalFlush ? royalFlush.id : data[0].id);
+        const royalStar = data.find((r: Room) => r.name.toUpperCase().includes("ROYAL STAR"));
+        setSelectedRoomId(royalStar ? royalStar.id : data[0].id);
       }
     }
   }, [selectedRoomId]);
